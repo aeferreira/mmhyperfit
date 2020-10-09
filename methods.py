@@ -1,5 +1,6 @@
 from __future__ import print_function
 import numpy as np
+import pandas as pd
 from scipy.optimize import curve_fit
 from scipy.stats import linregress as lreg
 import matplotlib.pyplot as pl
@@ -255,6 +256,27 @@ class MethodResults(object):
             mlines.append(fstring.format(r.name, r.V, SE_V, r.Km, SE_Km))
         col_labels.extend(mlines)
         return '\n'.join(col_labels)
+   
+    def as_df(self):
+        results = self.results
+        index = []
+        V = []
+        SE_V = []
+        Km = []
+        SE_Km = []
+        for r in results:
+            index.append(r.name)
+            V.append(r.V)
+            SE_V.append(r.SE_V)
+            Km.append(r.Km)
+            SE_Km.append(r.SE_Km)
+
+        data = {'V': V, 'SE_V': SE_V, 'Km': Km, 'SE_Km': SE_Km}
+        print(data)
+        df = pd.DataFrame(data, index=index)
+        df.index.name = 'Method'
+        return df
+
 
     def plot_hypers(self, colorscheme=None, 
                           title=None,
@@ -471,8 +493,11 @@ if __name__ == '__main__':
 
     results = compute_methods(a, v0)    
     print (results)
+    print(results.as_df())
     
     results.plot_hypers(with_table=True)
     
     results.plot_others()
+
+    pl.show()
     
