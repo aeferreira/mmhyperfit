@@ -4,7 +4,6 @@
 
 from io import StringIO, BytesIO
 
-#from methods import compute_methods, MM_line
 import numpy as np
 import pandas as pd
 from scipy.optimize import curve_fit
@@ -14,7 +13,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvas
 
 import panel as pn
-pn.extension('tabulator')
+#pn.extension('tabulator')
 
 # fitting methods section
 
@@ -214,6 +213,19 @@ class MethodResults(object):
         self.results=results_list
         self.a = a
         self.v0 = v0
+
+    def repr_x_deltax(self, x, deltax):
+        if deltax is None:
+            return f'{x:6.3f}'
+        return f"{x:6.3f} ± {deltax:6.3f}"
+
+    def report_str(self):
+        lines = []
+        for result in self.results:
+            lines.append(result['name'])
+            lines.append('   Vmax = ' + self.repr_x_deltax(result['V'], result['SE_V']))
+            lines.append('   Km   = ' + self.repr_x_deltax(result['Km'], result['SE_Km']))
+        return '\n'.join(lines)
 
     def __str__(self):
         results = self.results
@@ -444,7 +456,7 @@ empty_df.index.name = '#'
 
 fig0 = Figure(figsize=(8, 6))
 ax0 = fig0.subplots()
-FigureCanvas(fig0)  # not needed for mpl >= 3.1
+#FigureCanvas(fig0)  # not needed for mpl >= 3.1
 t = ax0.text(0.5, 0.5, 'no figure generated')
 
 last_results = None
@@ -484,7 +496,7 @@ def hypers_mpl(results, display_methods=all_methods_list,
     res_values = []
 
     f = Figure(figsize=(8, 6))
-    FigureCanvas(f) # not needed in mpl >= 3.1
+    #FigureCanvas(f) # not needed in mpl >= 3.1
     ax = f.add_subplot()
     
     if colorscheme is None:
@@ -581,7 +593,15 @@ def change_data_view(event):
 edit_table_group.param.watch(change_data_view, 'value')
 
 # results
-results_df = pn.widgets.Tabulator(empty_df)
+#results_df = pn.widgets.Tabulator(empty_df)
+# results_text = pn.widgets.input.TextAreaInput(style={'font-family': "monospace"},
+#                                               height=300, width=200,
+#                                               min_height=300,
+#                                               min_width=200,
+#                                               height_policy='min')
+
+#results_text = pn.pane.Markdown('', style={'font-family': "monospace"})
+results_text = pn.pane.Str('', style={'font-family': "monospace"})
 
 mpl_pane = pn.pane.Matplotlib(fig0)
 
@@ -620,7 +640,7 @@ def get_pdf_hypers(check_methods):
 fd_png = pn.widgets.FileDownload(callback=get_png_hypers, filename='hypers.png', width=200)
 fd_pdf = pn.widgets.FileDownload(callback=get_pdf_hypers, filename='hypers.pdf', width=200)
 
-no_results_pane = pn.Column(pn.layout.Divider())
+no_results_pane = pn.Column(None)
 
 
 # the "Fit" button
@@ -630,17 +650,19 @@ def b_fit(event):
     f = StringIO()
     #print(results_pane.pprint())
     s, v0 = read_data(data_input_text.value)
-    print ('s  =', s, file=f)
-    print ('v0 =', v0, file=f)
-    print ('-------------------------------------------------', file=f)
+    #print ('s  =', s, file=f)
+    #print ('v0 =', v0, file=f)
+    #print ('-------------------------------------------------', file=f)
     last_results = compute_methods(s, v0)
-    df = last_results.as_df()
-    print(df, file=f)
-    newtxt = f.getvalue()
+    #df = last_results.as_df()
+    #print(df, file=f)
+    #newtxt = f.getvalue()
 
-    results_df.value = df
+    #results_df.value = df
 
-    results_pane = pn.Column(pn.layout.Divider(), "## Fitting results", results_df, '## Plots',
+    results_text.object = last_results.report_str()
+
+    results_pane = pn.Column(pn.layout.Divider(), "## Fitting results", results_text, '## Plots',
                          pn.Row(change_plot, pn.Column(pn.Spacer(height=50), check_methods, fd_png, fd_pdf)))
     app_column[-1] = results_pane
 fit_button.on_click(b_fit)
@@ -648,6 +670,14 @@ fit_button.on_click(b_fit)
 top_buttons = pn.Row(edit_table_group, clear_button)
 data_input_row = pn.Row(data_input_column, pn.Column(top_buttons, demo_button, fit_button))
 
-app_column = pn.Column("<br>\n# Michaelis-Menten equation fitting", "## Data input", data_input_row, no_results_pane)
+header = r"""# Michaelis-Menten equation fitting
+
+$$v = \frac{V a}{K_m + a}$$
+
+## Data input
+"""
+
+app_column = pn.Column(header, data_input_row, no_results_pane)
+
 app_column.servable()
 # app_column
