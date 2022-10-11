@@ -10,10 +10,12 @@ from scipy.optimize import curve_fit
 from scipy.stats import linregress as lreg
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
-from matplotlib.backends.backend_agg import FigureCanvas
+from bokeh.models.widgets.tables import NumberFormatter, BooleanFormatter
 
 import panel as pn
-#pn.extension('tabulator')
+pn.extension('tabulator')
+pn.extension('notifications')
+pn.extension(notifications=True)
 
 # fitting methods section
 
@@ -39,22 +41,6 @@ def MM_line(V, Km, xmax=1.0):
     x = np.linspace(x0, xmax, 200)
     return x, MM(x, V, Km)
 
-
-def res_tuple(method, V, Km, SV=None, SKm=None):
-    sV = f"{V:6.4f}"
-    sKm = f"{Km:6.4f}"
-    if SV is None:
-        sSV = 'n/a'
-    else:
-        sSV = f"{SV:6.4f}"
-    if SKm is None:
-        sSKm = 'n/a'
-    else:
-        sSKm = f"{SKm:6.4f}"
-    return method, sV, sSV, sKm, sSKm
-
-
-
 # dict that holds data from a computation.
 
 # Mandatory members are:
@@ -74,8 +60,8 @@ def res_tuple(method, V, Km, SV=None, SKm=None):
 # b - intercept of linearization
 
 
-def res_object(method, V=0.0, Km=0.0, SE_V=None, SE_Km=None, error=None,
-               x=None, y=None, m=None, b=None):
+def res_dict(method, V=0.0, Km=0.0, SE_V=None, SE_Km=None, error=None,
+             x=None, y=None, m=None, b=None):
     return {'name': method, 'V': V, 'Km':Km, 'error': error,
             'SE_V': SE_V, 'SE_Km': SE_Km,
             'x':x, 'y':y, 'm':m, 'b':b}
@@ -99,7 +85,7 @@ def lineweaver_burk(a, v0):
     Km = m / b
     SV = V * Sb / b
     SKm = Km * np.sqrt((Sm/m)**2 + (Sb/b)**2)
-    return res_object('Lineweaver-Burk', V, Km, SE_V=SV, SE_Km=SKm,
+    return res_dict('Lineweaver-Burk', V, Km, SE_V=SV, SE_Km=SKm,
                       x=x, y=y, m=m, b=b)
 
 
@@ -119,7 +105,7 @@ def hanes_woolf(a, v0):
     Km = b / m
     SV = V * Sm / m
     SKm = Km * np.sqrt((Sm/m)**2 + (Sb/b)**2)
-    return res_object('Hanes or Woolf', V, Km, SE_V=SV, SE_Km=SKm,
+    return res_dict('Hanes or Woolf', V, Km, SE_V=SV, SE_Km=SKm,
                       x=x, y=y, m=m, b=b)
 
 
@@ -139,7 +125,7 @@ def eadie_hofstee(a, v0):
     Km = -m
     SV = Sb
     SKm = Sm
-    return res_object('Eadie-Hofstee', V, Km, SE_V=SV, SE_Km=SKm,
+    return res_dict('Eadie-Hofstee', V, Km, SE_V=SV, SE_Km=SKm,
                       x=x, y=y, m=m, b=b)
 
 
@@ -148,7 +134,7 @@ def hyperbolic(a, v0):
     errors = np.sqrt(np.diag(pcov))
     V, Km = popt[0:2]
     SV, SKm = errors[0:2]
-    return res_object('Hyperbolic', V, Km, SE_V=SV, SE_Km=SKm, x=a, y=v0)
+    return res_dict('Hyperbolic regression', V, Km, SE_V=SV, SE_Km=SKm, x=a, y=v0)
 
 
 def cornish_bowden(a, v0):
@@ -169,7 +155,7 @@ def cornish_bowden(a, v0):
     V = np.median(intersects_y)
     Km = np.median(intersects_x)
     # TODO: compute CIs
-    res = res_object('Eisenthal-C.Bowden', V, Km, x=a, y=v0)
+    res = res_dict('Eisenthal-C.Bowden', V, Km, x=a, y=v0)
     # these are returned to help to draw a graph:
     res['intersections_x'] = intersects_x
     res['intersections_y'] = intersects_y
@@ -180,23 +166,8 @@ def cornish_bowden(a, v0):
 
 def compute_methods(a, v0):
     # compute methods
-    m_table = ({'name': 'L.-Burk',
-                'method': lineweaver_burk,
-                'color': 'g'},
-               {'name': 'Hanes',
-                'method': hanes_woolf,
-                'color': 'c'},
-               {'name': 'E.-Hofstee',
-                'method': eadie_hofstee,
-                'color': 'y'},
-               {'name': 'Hyperbolic',
-                'method': hyperbolic,
-                'color': 'r'},
-               {'name': 'C.-Bowden',
-                'method': cornish_bowden,
-                'color': 'k'})
-
-    all_r = [m['method'](a, v0) for m in m_table]
+    m_table  = (hyperbolic, lineweaver_burk, hanes_woolf, eadie_hofstee, cornish_bowden)
+    all_r = [m(a, v0) for m in m_table]
     return MethodResults(a, v0, all_r)
 
 
@@ -244,89 +215,6 @@ class MethodResults(object):
             mlines.append(fstring.format(r['name'], r['V'], SE_V, r['Km'], SE_Km))
         col_labels.extend(mlines)
         return '\n'.join(col_labels)
-   
-    def as_df(self):
-        results = self.results
-        index = []
-        V = []
-        SE_V = []
-        Km = []
-        SE_Km = []
-        for r in results:
-            index.append(r['name'])
-            V.append(r['V'])
-            SE_V.append(r['SE_V'])
-            Km.append(r['Km'])
-            SE_Km.append(r['SE_Km'])
-
-        data = {'V': V, 'SE_V': SE_V, 'Km': Km, 'SE_Km': SE_Km}
-        #print(data)
-        df = pd.DataFrame(data, index=index)
-        df.index.name = 'Method'
-        return df
-
-
-    def plot_hypers(self, colorscheme=None, 
-                          title=None,
-                          legend=True,
-                          with_table=False,
-                          grid=True):
-
-        a = self.a
-        v0 = self.v0
-        all_results = self.results
-        res_values = []
-        f, ax = plt.subplots(1, 1, figsize=(8, 6))
-        if colorscheme is None:
-            colorscheme = default_color_scheme
-        if title is None:
-            title = 'All methods'
-
-        xmax = max(a) * 1.1
-        ymax = max(v0) * 1.1
-
-        ax.set_title(title)
-        ax.set_ylim(0, ymax)
-        ax.set_xlim(0, xmax)
-
-        for r, c in zip(all_results, colorscheme):
-            V = r['V']
-            Km = r['Km']
-            x, y = MM_line(V, Km, xmax=xmax)
-
-            ax.plot(x, y, label=r.name,
-                          color=c,
-                          linestyle='solid',
-                          lw=2)
-            res_values.append(res_tuple(r['name'], r['V'], r['Km'], r['SE_V'], r['SE_Km']))
-
-
-        ax.plot(a, v0, marker='o',
-                       linestyle='None', 
-                       markerfacecolor='white', 
-                       markeredgecolor='black', 
-                       markeredgewidth=1.5, 
-                       markersize=6)
-        ax.set_xlabel('[S]')
-        ax.set_ylabel('$v_0$', fontsize=18)
-        if legend:
-            ax.legend(loc='lower right')
-        if grid:
-            ax.grid()
-        
-        if with_table:
-            # draw table
-            col_labels = 'Method', 'V', 'SE_V', 'Km', 'SE_Km'
-            the_table = ax.table(cellText=res_values,
-                                 colWidths=[0.08, 0.05, 0.05, 0.05, 0.05],
-                                 colLabels=col_labels,
-                                 loc='upper left')
-            the_table.set_fontsize(16)
-            the_table.scale(2, 1.8)
-            the_table.backgroundcolor='white'
-            
-        plt.show()
-        return f
 
     def plot_others(self, colorscheme=None, grid=True):
         a = self.a
@@ -456,13 +344,12 @@ empty_df.index.name = '#'
 
 fig0 = Figure(figsize=(8, 6))
 ax0 = fig0.subplots()
-#FigureCanvas(fig0)  # not needed for mpl >= 3.1
 t = ax0.text(0.5, 0.5, 'no figure generated')
 
 last_results = None
-all_methods_list = ['Lineweaver-Burk', 'Hanes-Woolf', 'Eadie-Hofstee', 'Hyperbolic Reg.', 'Eisenthal-C.Bowden']
+all_methods_list = ['Hyperbolic Regression', 'Lineweaver-Burk', 'Hanes-Woolf', 'Eadie-Hofstee', 'Eisenthal-C.Bowden']
 
-def read_data(data):  # used just for testing
+def read_data(data):
     a = []
     v0 = []
     for line in data.splitlines():
@@ -493,10 +380,8 @@ def hypers_mpl(results, display_methods=all_methods_list,
     a = results.a
     v0 = results.v0
     all_results = results.results
-    res_values = []
 
     f = Figure(figsize=(8, 6))
-    #FigureCanvas(f) # not needed in mpl >= 3.1
     ax = f.add_subplot()
     
     if colorscheme is None:
@@ -528,8 +413,8 @@ def hypers_mpl(results, display_methods=all_methods_list,
                    markeredgecolor='black', 
                    markeredgewidth=1.5, 
                    markersize=6)
-    ax.set_xlabel('[S]')
-    ax.set_ylabel('$v_0$', fontsize=18)
+    ax.set_xlabel('$a$')
+    ax.set_ylabel('$v_0$', fontsize=16)
     if legend:
         ax.legend(loc='lower right')
     if grid:
@@ -548,20 +433,23 @@ def read_data_df(data_text):
 # widgetry
 
 # data input
-data_input_text = pn.widgets.input.TextAreaInput(height=400, width=300,
-                                                 min_height=400,
+data_input_text = pn.widgets.input.TextAreaInput(height=300, width=200,
+                                                 min_height=300,
                                                  min_width=100,
                                                  height_policy='min')
 
-data_dfwidget = pn.widgets.DataFrame(empty_df, width=300, disabled=True)
-#data_dfwidget = pn.pane.DataFrame(empty_df, width=400, index=False, justify='left')
+#data_dfwidget = pn.widgets.DataFrame(empty_df, width=300, disabled=True)
+bokeh_formatters = {
+    'rate': NumberFormatter(format='0.00000'),
+    'substrate': NumberFormatter(format='0.00000'),
+}
+data_dfwidget = pn.widgets.Tabulator(empty_df,width=200, disabled=True, formatters=bokeh_formatters)
 
 data_input_column = pn.Column(data_input_text)
 
 # data input buttons
 clear_button = pn.widgets.Button(name='Clear', button_type='danger', width=80)
 def b_clear(event):
-    #data_input_column[0] = data_input_text
     data_input_text.value = data_input_text.placeholder
     edit_table_group.value = 'Edit'
     app_column[-1] = no_results_pane
@@ -587,20 +475,15 @@ def change_data_view(event):
         df = transform_data2df(data_input_text.value)
         data_dfwidget.value = df
         data_input_column[0] = data_dfwidget
+        pn.state.notifications.position = 'top-left'
+        pn.state.notifications.info('Data OK', duration=3000)
     else:
         data_input_column[0] = data_input_text
 
 edit_table_group.param.watch(change_data_view, 'value')
 
 # results
-#results_df = pn.widgets.Tabulator(empty_df)
-# results_text = pn.widgets.input.TextAreaInput(style={'font-family': "monospace"},
-#                                               height=300, width=200,
-#                                               min_height=300,
-#                                               min_width=200,
-#                                               height_policy='min')
 
-#results_text = pn.pane.Markdown('', style={'font-family': "monospace"})
 results_text = pn.pane.Str('', style={'font-family': "monospace"})
 
 mpl_pane = pn.pane.Matplotlib(fig0)
@@ -647,22 +530,11 @@ no_results_pane = pn.Column(None)
 fit_button = pn.widgets.Button(name='Fit', width=200, button_type='primary')
 def b_fit(event):
     global last_results
-    f = StringIO()
-    #print(results_pane.pprint())
     s, v0 = read_data(data_input_text.value)
-    #print ('s  =', s, file=f)
-    #print ('v0 =', v0, file=f)
-    #print ('-------------------------------------------------', file=f)
     last_results = compute_methods(s, v0)
-    #df = last_results.as_df()
-    #print(df, file=f)
-    #newtxt = f.getvalue()
-
-    #results_df.value = df
 
     results_text.object = last_results.report_str()
-
-    results_pane = pn.Column(pn.layout.Divider(), "## Fitting results", results_text, '## Plots',
+    results_pane = pn.Column(pn.layout.Divider(), "### Fitting results", results_text, '### Plots',
                          pn.Row(change_plot, pn.Column(pn.Spacer(height=50), check_methods, fd_png, fd_pdf)))
     app_column[-1] = results_pane
 fit_button.on_click(b_fit)
@@ -670,11 +542,11 @@ fit_button.on_click(b_fit)
 top_buttons = pn.Row(edit_table_group, clear_button)
 data_input_row = pn.Row(data_input_column, pn.Column(top_buttons, demo_button, fit_button))
 
-header = r"""# Michaelis-Menten equation fitting
+header = """## Michaelis-Menten equation fitting
 
-$$v = \frac{V a}{K_m + a}$$
+$$v = \\frac{V a}{K_m + a}$$
 
-## Data input
+### Data input
 """
 
 app_column = pn.Column(header, data_input_row, no_results_pane)
