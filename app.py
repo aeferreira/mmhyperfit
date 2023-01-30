@@ -40,7 +40,7 @@ def MM(a, V, Km):
 class Res_Dict(Parameterized):
     """Class to hold data from a computation."""
 
-    name = param.String(default='Hanes', doc='Name of the method used')
+    method = param.String(default='Hanes', doc='Name of the method used')
     error = param.String(default=None, doc='Computation error description')
 
     V = param.Number(default=0.0, bounds=(0.0, None), doc='limiting rate')
@@ -53,20 +53,16 @@ class Res_Dict(Parameterized):
                        doc='standard error of the Michelis constant')
 
     # Optional for linearizations:
-    m = param.Number(default=None, bounds=(0.0, None),
-                     doc='slope of linearization')
-    b = param.Number(default=None, bounds=(0.0, None),
-                     doc='intercept of linearization')
+    m = param.Number(default=None, doc='slope of linearization')
+    b = param.Number(default=None, doc='intercept of linearization')
     x = param.Array(default=None, doc='x-values during linearization')
     y = param.Array(default=None, doc='y-values during linearization')
 
-
-def res_dict(method, V=0.0, Km=0.0, SE_V=None, SE_Km=None, error=None,
-             x=None, y=None, m=None, b=None):
-    return {'name': method, 'V': V, 'Km':Km, 'error': error,
-            'SE_V': SE_V, 'SE_Km': SE_Km,
-            'x':x, 'y':y, 'm':m, 'b':b}
-
+    # Optional for direct liner plot:
+    intersections = param.Array(default=None, doc='dlp intersection coordinates')
+    # intersections_y = param.Array(default=None, doc='y-values of intersections')
+    straights_m = param.Array(default=None, doc='slopes of dlp lines')
+    straights_b = param.Array(default=None, doc='intercepts of dlp lines')
 
 # ------------ methods --------------------------
 # all methods accept numpy arrays as input
@@ -86,7 +82,7 @@ def lineweaver_burk(a, v0):
     Km = m / b
     SV = V * Sb / b
     SKm = Km * np.sqrt((Sm/m)**2 + (Sb/b)**2)
-    return res_dict('Lineweaver-Burk', V, Km, SE_V=SV, SE_Km=SKm,
+    return Res_Dict(method='Lineweaver-Burk', V=V, Km=Km, SE_V=SV, SE_Km=SKm,
                       x=x, y=y, m=m, b=b)
 
 
@@ -106,7 +102,7 @@ def hanes_woolf(a, v0):
     Km = b / m
     SV = V * Sm / m
     SKm = Km * np.sqrt((Sm/m)**2 + (Sb/b)**2)
-    return res_dict('Hanes', V, Km, SE_V=SV, SE_Km=SKm,
+    return Res_Dict(method='Hanes', V=V, Km=Km, SE_V=SV, SE_Km=SKm,
                       x=x, y=y, m=m, b=b)
 
 
@@ -126,7 +122,7 @@ def eadie_hofstee(a, v0):
     Km = -m
     SV = Sb
     SKm = Sm
-    return res_dict('Eadie-Hofstee', V, Km, SE_V=SV, SE_Km=SKm,
+    return Res_Dict(method='Eadie-Hofstee', V=V, Km=Km, SE_V=SV, SE_Km=SKm,
                       x=x, y=y, m=m, b=b)
 
 
@@ -135,13 +131,12 @@ def hyperbolic(a, v0):
     errors = np.sqrt(np.diag(pcov))
     V, Km = popt[0:2]
     SV, SKm = errors[0:2]
-    return res_dict('Hyperbolic regression', V, Km, SE_V=SV, SE_Km=SKm, x=a, y=v0)
+    return Res_Dict(method='Hyperbolic regression', V=V, Km=Km, SE_V=SV, SE_Km=SKm, x=a, y=v0)
 
 
 def cornish_bowden(a, v0):
     straights = [(v/s, v) for v, s in zip(v0, a)]
-    intersects_x = []
-    intersects_y = []
+    intersects = []
 
     n = len(straights)
     for i in range(0, n-1):
@@ -150,26 +145,23 @@ def cornish_bowden(a, v0):
             rj_m, rj_b = straights[j]
             x = (rj_b - ri_b) / (ri_m - rj_m)
             y = (ri_b * rj_m - rj_b * ri_m) / (rj_m - ri_m)
-            intersects_x.append(x)
-            intersects_y.append(y)
+            intersects.append((x, y))
+    intersects = np.array(intersects)
 
-    V = np.median(intersects_y)
-    Km = np.median(intersects_x)
+    V = np.median(intersects[:,1])
+    Km = np.median(intersects[:,0])
     # TODO: compute CIs
-    res = res_dict('Eisenthal-C.Bowden', V, Km, x=a, y=v0)
-    # these are returned to help to draw a graph:
-    res['intersections_x'] = intersects_x
-    res['intersections_y'] = intersects_y
-    res['straights_m'] = v0 / a
-    res['straights_b'] = v0
+    res = Res_Dict(method='Eisenthal-C.Bowden', V=V, Km=Km, x=a, y=v0,
+                   intersections=intersects,
+                   straights_m=v0 / a,
+                   straights_b=v0)
     return res
 
 def compute_methods(a, v0):
-    # compute methods
+    """Compute results for all methods."""
     m_table  = (hyperbolic, lineweaver_burk, hanes_woolf, eadie_hofstee, cornish_bowden)
     results = [m(a, v0) for m in m_table]
     return {'a': a, 'v0': v0, 'results': results}
-    #return MethodResults(a, v0, all_r)
 
 # ------------- (str) report of results ------
 
@@ -181,9 +173,9 @@ def repr_x_deltax(x, deltax):
 def report_str(results):
     lines = []
     for result in results:
-        lines.append(result['name'])
-        lines.append('   V  = ' + repr_x_deltax(result['V'], result['SE_V']))
-        lines.append('   Km = ' + repr_x_deltax(result['Km'], result['SE_Km']))
+        lines.append(result.method)
+        lines.append('   V  = ' + repr_x_deltax(result.V, result.SE_V))
+        lines.append('   Km = ' + repr_x_deltax(result.Km, result.SE_Km))
     return '\n'.join(lines)
 
 # ------------ plots --------------------------
@@ -234,10 +226,10 @@ def read_data(data):
     return np.array(a), np.array(v0)
 
 def hypers_mpl(results, display_methods=all_methods_list,
-                      colorscheme=None, 
-                      title=None,
-                      legend=True,
-                      grid=True):
+               colorscheme=None, 
+               title=None,
+               legend=True,
+               grid=True):
 
     default_color_scheme = ('darkviolet',
                             'green',
@@ -263,16 +255,16 @@ def hypers_mpl(results, display_methods=all_methods_list,
     chosen3letter = [choice[:3] for choice in display_methods]
 
     for result, color in zip(all_results, colorscheme):
-        if result['name'][:3] not in chosen3letter:
+        if result.method[:3] not in chosen3letter:
             continue
 
-        V, Km = result['V'], result['Km']
+        V, Km = result.V, result.Km
         x = np.linspace(0.0, xmax, 200)
         y = MM(x, V, Km)
 
         # x, y = MM_line(result['V'], result['Km'], xmax=xmax)
 
-        ax.plot(x, y, label=result['name'],
+        ax.plot(x, y, label=result.method,
                       color=color,
                       linestyle='solid',
                       lw=2)
@@ -306,19 +298,18 @@ def plot_others_mpl(results, colorscheme=None, grid=True):
 
 
 def draw_lin_plot(ax, result, color='black', 
-                               title=None,
-                               grid=True):
+                  title=None, grid=True):
 
     if title is None:
-        title = result['name']
-    x = result['x']
-    y = result['y']
+        title = result.method
+    x = result.x
+    y = result.y
 
     xmax = max(x) * 1.1
-    ymax = xmax * result['m'] + result['b']
+    ymax = xmax * result.m + result.b
 
-    if result['m'] < 0:
-        ytop = result['b']
+    if result.m < 0:
+        ytop = result.b
     else:
         ytop = ymax
     ytop = 1.1 * ytop
@@ -327,9 +318,8 @@ def draw_lin_plot(ax, result, color='black',
     ax.set_ylim(0, ytop)
     ax.set_xlim(0, xmax)
 
-    ax.plot([0,xmax], [result['b'], ymax], color=color,
-                  linestyle='solid',
-                  lw=2)
+    ax.plot([0,xmax], [result.b, ymax], color=color,
+                  linestyle='solid', lw=2)
 
     ax.plot(x, y,  marker='o',
                    linestyle='None', 
@@ -338,13 +328,13 @@ def draw_lin_plot(ax, result, color='black',
                    markeredgewidth=1.5, 
                    markersize=6)
 
-    if result['name'].startswith('Lineweaver'):
+    if result.method.startswith('Lineweaver'):
         xlabel = '$1/a$'
         ylabel = '$1/v_o$'
-    elif result['name'].startswith('Hanes'):
+    elif result.method.startswith('Hanes'):
         xlabel = '$a$'
         ylabel = '$a/v_o$'
-    elif result['name'].startswith('Eadie'):
+    elif result.method.startswith('Eadie'):
         xlabel = '$v_o/a$'
         ylabel = '$v_o$'
     else:
@@ -355,20 +345,19 @@ def draw_lin_plot(ax, result, color='black',
     if grid:
         ax.grid()
 
-def draw_cornish_bowden_plot(ax, results, 
-                                 color='black',
-                                 title=None,                                 
-                                 grid=True):
+def draw_cornish_bowden_plot(ax, results,
+                             color='black',
+                             title=None,
+                             grid=True):
 
-    a = results['x']
-    v0 = results['y']
-    intersections_x = results['intersections_x']
-    intersections_y = results['intersections_y']
+    a = results.x
+    v0 = results.y
+    intersections = results.intersections
     if title is None:
-        title = results['name']
+        title = results.method
 
-    xmax = max(intersections_x) * 1.1
-    ymax = max(intersections_y) * 1.1
+    xmax = max(intersections[:, 0]) * 1.1
+    ymax = max(intersections[:, 1]) * 1.1
     xmin = max(a) * 1.1
     ymin = 0.0
 
@@ -382,20 +371,21 @@ def draw_cornish_bowden_plot(ax, results,
                   color='gray',
                   linestyle='solid',
                   lw=1)
-    for x, y in zip(intersections_x, intersections_y):
+    for x, y in map(tuple, intersections):
+    # for x, y in zip(intersections[:, 0], intersections[:, 1]):
         ax.plot(x, y,  
                    marker='o',
-                   linestyle='None', 
-                   markerfacecolor='white', 
-                   markeredgecolor='black', 
-                   markeredgewidth=1, 
+                   linestyle='None',
+                   markerfacecolor='white',
+                   markeredgecolor='black',
+                   markeredgewidth=1,
                    markersize=4)
-    ax.plot(results['Km'], results['V'], 
+    ax.plot(results.Km, results.V,
                marker='o',
-               linestyle='None', 
-               markerfacecolor='white', 
-               markeredgecolor=color, 
-               markeredgewidth=1.5, 
+               linestyle='None',
+               markerfacecolor='white',
+               markeredgecolor=color,
+               markeredgewidth=1.5,
                markersize=6)
     ax.set_xlabel('Km')
     ax.set_ylabel('V')
