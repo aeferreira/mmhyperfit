@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from bokeh.models.widgets.tables import NumberFormatter, BooleanFormatter
 
+import param
+from param import Parameter, Parameterized
 import panel as pn
 pn.extension('tabulator')
 pn.extension('notifications')
@@ -35,29 +37,28 @@ def lin_regression(x, y):
 def MM(a, V, Km):
     return V * a / (Km + a)
 
+class Res_Dict(Parameterized):
+    """Class to hold data from a computation."""
 
-def MM_line(V, Km, xmax=1.0):
-    x0 = 0
-    x = np.linspace(x0, xmax, 200)
-    return x, MM(x, V, Km)
+    name = param.String(default='Hanes', doc='Name of the method used')
+    error = param.String(default=None, doc='Computation error description')
 
-# dict that holds data from a computation.
+    V = param.Number(default=0.0, bounds=(0.0, None), doc='limiting rate')
+    Km = param.Number(default=0.0, bounds=(0.0, None), doc='Michaelis constant')
 
-# Mandatory members are:
-# name - Name of the method used (str).
-# error - None by default, str describing error in computation
-# V - limiting rate (float)
-# Km - Michaelis constant (float)
+    # Optional, depending on the method:
+    SE_V = param.Number(default=None, bounds=(0.0, None),
+                       doc='standard error of the limiting rate')
+    SE_Km = param.Number(default=None, bounds=(0.0, None),
+                       doc='standard error of the Michelis constant')
 
-# Optional, depending on the method:
-# SE_V - standard error of the limiting rate
-# SE_Km - standard error of the Michelis constant
-
-# Optional for linearizations:
-# x - x-values during linearization (iterable of floats)
-# y - y-values during linearization (iterable of floats)
-# m - slope of linearization
-# b - intercept of linearization
+    # Optional for linearizations:
+    m = param.Number(default=None, bounds=(0.0, None),
+                     doc='slope of linearization')
+    b = param.Number(default=None, bounds=(0.0, None),
+                     doc='intercept of linearization')
+    x = param.Array(default=None, doc='x-values during linearization')
+    y = param.Array(default=None, doc='y-values during linearization')
 
 
 def res_dict(method, V=0.0, Km=0.0, SE_V=None, SE_Km=None, error=None,
@@ -265,7 +266,11 @@ def hypers_mpl(results, display_methods=all_methods_list,
         if result['name'][:3] not in chosen3letter:
             continue
 
-        x, y = MM_line(result['V'], result['Km'], xmax=xmax)
+        V, Km = result['V'], result['Km']
+        x = np.linspace(0.0, xmax, 200)
+        y = MM(x, V, Km)
+
+        # x, y = MM_line(result['V'], result['Km'], xmax=xmax)
 
         ax.plot(x, y, label=result['name'],
                       color=color,
