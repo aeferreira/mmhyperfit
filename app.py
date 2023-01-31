@@ -7,7 +7,7 @@ from io import StringIO, BytesIO
 import numpy as np
 import pandas as pd
 from scipy.optimize import curve_fit
-from scipy.stats import linregress as lreg
+from scipy.stats import linregress
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from bokeh.models.widgets.tables import NumberFormatter, BooleanFormatter
@@ -21,14 +21,14 @@ pn.extension(notifications=True)
 
 # fitting methods section
 
-def lin_regression(x, y):
+def lin_regression(xvalues, yvalues):
     """Simple linear regression (y = m * x + b + error)."""
-    m, b, R, p, SEm = lreg(x, y)
+    m, b, R, p, SEm = linregress(xvalues, yvalues)
 
     # need to compute SEb, linregress only computes SEm
-    n = len(x)
-    SSx = np.var(x, ddof=1) * (n-1)  # this is sum( (x - mean(x))**2 )
-    SEb2 = SEm**2 * (SSx/n + np.mean(x)**2)
+    n = len(xvalues)
+    SSx = np.var(xvalues, ddof=1) * (n-1)  # this is sum( (x - mean(x))**2 )
+    SEb2 = SEm**2 * (SSx/n + np.mean(xvalues)**2)
     SEb = SEb2**0.5
 
     return m, b, SEm, SEb, R, p
@@ -37,7 +37,8 @@ def lin_regression(x, y):
 def MM(a, V, Km):
     return V * a / (Km + a)
 
-class Res_Dict(Parameterized):
+
+class ResDict(Parameterized):
     """Class to hold data from a computation."""
 
     method = param.String(default='Hanes', doc='Name of the method used')
@@ -77,13 +78,13 @@ def lineweaver_burk(a, v0):
         a = np.delete(a, index)
         v0 = np.delete(v0, index)
     x, y = 1/a, 1/v0
-    m, b, Sm, Sb, R, p = lin_regression(x, y)
+    m, b, Sm, Sb, _, _ = lin_regression(x, y)
     V = 1.0 / b
     Km = m / b
     SV = V * Sb / b
     SKm = Km * np.sqrt((Sm/m)**2 + (Sb/b)**2)
-    return Res_Dict(method='Lineweaver-Burk', V=V, Km=Km, SE_V=SV, SE_Km=SKm,
-                      x=x, y=y, m=m, b=b)
+    return ResDict(method='Lineweaver-Burk', V=V, Km=Km, SE_V=SV, SE_Km=SKm,
+                    x=x, y=y, m=m, b=b)
 
 
 def hanes_woolf(a, v0):
@@ -97,13 +98,13 @@ def hanes_woolf(a, v0):
         v0 = np.delete(v0, index)
     x = a
     y = a/v0
-    m, b, Sm, Sb, R, p = lin_regression(x, y)
+    m, b, Sm, Sb, _, _ = lin_regression(x, y)
     V = 1.0 / m
     Km = b / m
     SV = V * Sm / m
     SKm = Km * np.sqrt((Sm/m)**2 + (Sb/b)**2)
-    return Res_Dict(method='Hanes', V=V, Km=Km, SE_V=SV, SE_Km=SKm,
-                      x=x, y=y, m=m, b=b)
+    return ResDict(method='Hanes', V=V, Km=Km, SE_V=SV, SE_Km=SKm,
+                    x=x, y=y, m=m, b=b)
 
 
 def eadie_hofstee(a, v0):
@@ -117,21 +118,21 @@ def eadie_hofstee(a, v0):
         v0 = np.delete(v0, index)
     x = v0/a
     y = v0
-    m, b, Sm, Sb, R, p = lin_regression(x, y)
+    m, b, Sm, Sb, _, _ = lin_regression(x, y)
     V = b
     Km = -m
     SV = Sb
     SKm = Sm
-    return Res_Dict(method='Eadie-Hofstee', V=V, Km=Km, SE_V=SV, SE_Km=SKm,
-                      x=x, y=y, m=m, b=b)
+    return ResDict(method='Eadie-Hofstee', V=V, Km=Km, SE_V=SV, SE_Km=SKm,
+                    x=x, y=y, m=m, b=b)
 
 
 def hyperbolic(a, v0):
-    popt, pcov = curve_fit(MM, a, v0, p0=(max(v0), np.median(a)))
+    popt, pcov, *_ = curve_fit(MM, a, v0, p0=(max(v0), np.median(a)))
     errors = np.sqrt(np.diag(pcov))
     V, Km = popt[0:2]
     SV, SKm = errors[0:2]
-    return Res_Dict(method='Hyperbolic regression', V=V, Km=Km, SE_V=SV, SE_Km=SKm, x=a, y=v0)
+    return ResDict(method='Hyperbolic regression', V=V, Km=Km, SE_V=SV, SE_Km=SKm, x=a, y=v0)
 
 
 def cornish_bowden(a, v0):
@@ -151,11 +152,13 @@ def cornish_bowden(a, v0):
     V = np.median(intersects[:,1])
     Km = np.median(intersects[:,0])
     # TODO: compute CIs
-    res = Res_Dict(method='Eisenthal-C.Bowden', V=V, Km=Km, x=a, y=v0,
+    res = ResDict(method='Eisenthal-C.Bowden',
+                   V=V, Km=Km, x=a, y=v0,
                    intersections=intersects,
                    straights_m=v0 / a,
                    straights_b=v0)
     return res
+
 
 def compute_methods(a, v0):
     """Compute results for all methods."""
@@ -180,12 +183,6 @@ def report_str(results):
 
 # ------------ plots --------------------------
 
-default_color_scheme = ('darkviolet',
-                        'green',
-                        'darkred',
-                        'cornflowerblue',
-                        'goldenrod')
-
 # constants
 demo_data = """0.138 0.148
 0.220 0.171
@@ -194,6 +191,12 @@ demo_data = """0.138 0.148
 0.766 0.390
 1.460 0.493
 """
+
+default_color_scheme = ('darkviolet',
+                        'green',
+                        'darkred',
+                        'cornflowerblue',
+                        'goldenrod')
 
 empty_df = pd.DataFrame({'substrate': [0], 'rate':[0]})
 empty_df.index.name = '#'
@@ -216,31 +219,30 @@ def read_data(data):
         line = line.strip()
         if len(line) == 0:
             continue
+        if line.startswith('#'):
+            continue
         x1, x2 = line.split(None, 2)
         try:
             x1, x2 = float(x1), float(x2)
-        except:
+        except ValueError:
             continue
         a.append(x1)
         v0.append(x2)
     return np.array(a), np.array(v0)
 
-def hypers_mpl(results, display_methods=all_methods_list,
-               colorscheme=None, 
+
+def hypers_mpl(results,
+               display_methods=tuple(all_methods_list),
+               colorscheme=None,
                title=None,
                legend=True,
                grid=True):
 
-    default_color_scheme = ('darkviolet',
-                            'green',
-                            'darkred',
-                            'cornflowerblue',
-                            'goldenrod')
     a = results['a']
     v0 = results['v0']
     all_results = results['results']
     plt.rc('mathtext', fontset='cm')
-    f, ax = plt.subplots(1,1, figsize=(8,6))
+    f, ax = plt.subplots(1, 1, figsize=(8,6))
 
     if colorscheme is None:
         colorscheme = default_color_scheme
@@ -259,21 +261,19 @@ def hypers_mpl(results, display_methods=all_methods_list,
             continue
 
         V, Km = result.V, result.Km
-        x = np.linspace(0.0, xmax, 200)
-        y = MM(x, V, Km)
+        line_x = np.linspace(0.0, xmax, 200)
+        line_y = MM(line_x, V, Km)
 
         # x, y = MM_line(result['V'], result['Km'], xmax=xmax)
 
-        ax.plot(x, y, label=result.method,
-                      color=color,
-                      linestyle='solid',
-                      lw=2)
+        ax.plot(line_x, line_y, label=result.method,
+                color=color, linestyle='solid', lw=2)
 
     ax.plot(a, v0, marker='o',
-                   linestyle='None', 
-                   markerfacecolor='white', 
-                   markeredgecolor='black', 
-                   markeredgewidth=1.5, 
+                   linestyle='None',
+                   markerfacecolor='white',
+                   markeredgecolor='black',
+                   markeredgewidth=1.5,
                    markersize=6)
     ax.set_xlabel('$a$', fontsize=16)
     ax.set_ylabel('$v_o$', fontsize=16)
@@ -283,6 +283,7 @@ def hypers_mpl(results, display_methods=all_methods_list,
         ax.grid()
     return f
 
+
 def plot_others_mpl(results, colorscheme=None, grid=True):
     all_r = results['results']
     if colorscheme is None:
@@ -291,13 +292,13 @@ def plot_others_mpl(results, colorscheme=None, grid=True):
     f, ax = plt.subplots(2, 2, figsize=(10,7.5))
     ax = [ax[0][0], ax[0][1], ax[1][0], ax[1][1]]
     for i in range(0,3):
-            draw_lin_plot(ax[i], all_r[i+1], color=colorscheme[i+1], grid=grid)
+        draw_lin_plot(ax[i], all_r[i+1], color=colorscheme[i+1], grid=grid)
     draw_cornish_bowden_plot(ax[3], all_r[4], color=colorscheme[4], grid=grid)
     f.tight_layout()
     return f
 
 
-def draw_lin_plot(ax, result, color='black', 
+def draw_lin_plot(ax, result, color='black',
                   title=None, grid=True):
 
     if title is None:
@@ -322,10 +323,10 @@ def draw_lin_plot(ax, result, color='black',
                   linestyle='solid', lw=2)
 
     ax.plot(x, y,  marker='o',
-                   linestyle='None', 
-                   markerfacecolor='white', 
-                   markeredgecolor='black', 
-                   markeredgewidth=1.5, 
+                   linestyle='None',
+                   markerfacecolor='white',
+                   markeredgecolor='black',
+                   markeredgewidth=1.5,
                    markersize=6)
 
     if result.method.startswith('Lineweaver'):
@@ -373,7 +374,7 @@ def draw_cornish_bowden_plot(ax, results,
                   lw=1)
     for x, y in map(tuple, intersections):
     # for x, y in zip(intersections[:, 0], intersections[:, 1]):
-        ax.plot(x, y,  
+        ax.plot(x, y,
                    marker='o',
                    linestyle='None',
                    markerfacecolor='white',
@@ -457,7 +458,9 @@ mpl_pane = pn.pane.Matplotlib(fig0)
 
 mpl_others_pane = pn.pane.Matplotlib(fig0)
 
-check_methods = pn.widgets.CheckBoxGroup(options=all_methods_list, value=all_methods_list, inline=False)
+check_methods = pn.widgets.CheckBoxGroup(options=all_methods_list,
+                                         value=all_methods_list,
+                                         inline=False)
 
 @pn.depends(check_methods)
 def change_plot(check_methods):
@@ -482,7 +485,7 @@ def get_png_hypers(check_methods):
         bio = BytesIO()
         f.savefig(bio, format='png', dpi=100)
         bio.seek(0)
-        return bio 
+        return bio
     return None
 
 @pn.depends(check_methods)
@@ -493,7 +496,7 @@ def get_pdf_hypers(check_methods):
         bio = BytesIO()
         f.savefig(bio, format='pdf')
         bio.seek(0)
-        return bio 
+        return bio
     return None
 
 fd_png = pn.widgets.FileDownload(callback=get_png_hypers, filename='hypers.png', width=200)
@@ -512,9 +515,15 @@ def b_fit(event):
 
     otherp = draw_other_plots()
 
-    results_pane = pn.Column(pn.layout.Divider(), "### Fitting results", results_text, '### Plots',
-                         pn.Row(change_plot, pn.Column(pn.Spacer(height=50), check_methods, fd_png, fd_pdf)),
-                         pn.Row(otherp))
+    results_pane = pn.Column(pn.layout.Divider(), "### Parameter values",
+                             results_text,
+                             '### Plots',
+                             pn.Row(change_plot,
+                                    pn.Column(pn.Spacer(height=50),
+                                              check_methods,
+                                              fd_png,
+                                              fd_pdf)),
+                             pn.Row(otherp))
     app_column[-1] = results_pane
 fit_button.on_click(b_fit)
 
