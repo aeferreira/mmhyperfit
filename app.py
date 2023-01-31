@@ -197,6 +197,10 @@ fig0 = Figure(figsize=(8, 6))
 ax0 = fig0.subplots()
 t = ax0.text(0.5, 0.5, 'no figure generated')
 
+fig1 = Figure(figsize=(12, 8))
+ax0 = fig1.subplots()
+t = ax0.text(0.5, 0.5, 'no figure generated')
+
 last_results = None
 all_methods_list = ['Hyperbolic Regression',
                     'Lineweaver-Burk',
@@ -256,8 +260,6 @@ def hypers_mpl(results,
         line_x = np.linspace(0.0, xmax, 200)
         line_y = MM(line_x, V, Km)
 
-        # x, y = MM_line(result['V'], result['Km'], xmax=xmax)
-
         ax.plot(line_x, line_y, label=result.method,
                 color=color, linestyle='solid', lw=2)
 
@@ -281,7 +283,7 @@ def plot_others_mpl(results, colorscheme=None, grid=True):
     if colorscheme is None:
         colorscheme = default_color_scheme
     plt.rc('mathtext', fontset='cm')
-    f, ax = plt.subplots(2, 2, figsize=(10,7.5))
+    f, ax = plt.subplots(2, 2, figsize=(12, 8))
     ax = [ax[0][0], ax[0][1], ax[1][0], ax[1][1]]
     for i in range(0,3):
         draw_lin_plot(ax[i], all_r[i+1], color=colorscheme[i+1], grid=grid)
@@ -411,16 +413,19 @@ bokeh_formatters = {
     'rate': NumberFormatter(format='0.00000'),
     'substrate': NumberFormatter(format='0.00000'),
 }
-data_dfwidget = pn.widgets.Tabulator(empty_df,width=200, disabled=True, formatters=bokeh_formatters)
+data_dfwidget = pn.widgets.Tabulator(empty_df, width=200, disabled=True,
+                                     formatters=bokeh_formatters)
 
 data_input_column = pn.Column(data_input_text)
 
 # data input buttons
 clear_button = pn.widgets.Button(name='Clear', button_type='danger', width=80)
 def b_clear(event):
+    results_pane.visible = False
     data_input_text.value = data_input_text.placeholder
     edit_table_group.value = 'Edit'
-    app_column[-1] = no_results_pane
+    results_text.object = ''
+    ready_check.value = False
 clear_button.on_click(b_clear)
 
 edit_table_group = pn.widgets.RadioButtonGroup(options=['Edit', 'Check'], width=100)
@@ -451,28 +456,31 @@ edit_table_group.param.watch(change_data_view, 'value')
 
 results_text = pn.pane.Str('', style={'font-family': "monospace"})
 
-mpl_pane = pn.pane.Matplotlib(fig0)
-
-mpl_others_pane = pn.pane.Matplotlib(fig0)
-
 check_methods = pn.widgets.CheckBoxGroup(options=all_methods_list,
                                          value=all_methods_list,
                                          inline=False)
 
-@pn.depends(check_methods)
-def change_plot(check_methods):
-    global last_results
-    if last_results is not None:
-        f = hypers_mpl(last_results, display_methods=check_methods)
-        mpl_pane.object = f
-    return mpl_pane
+ready_check = pn.widgets.Checkbox(name='Ready')
+ready_check.value = False
+ready_check.visible = False
 
-def draw_other_plots():
+@pn.depends(check_methods, ready_check)
+def draw_main_plot(check_methods, ready_check):
     global last_results
-    if last_results is not None:
+    if ready_check:
+        f = hypers_mpl(last_results, display_methods=check_methods)
+    else:
+        f = fig0
+    return pn.pane.Matplotlib(f)
+
+@pn.depends(check_methods, ready_check)
+def draw_other_plots(check_methods, ready_check):
+    global last_results
+    if ready_check:
         f = plot_others_mpl(last_results)
-        mpl_others_pane.object = f
-    return mpl_others_pane
+    else:
+        f = fig1
+    return pn.pane.Matplotlib(f)
 
 @pn.depends(check_methods)
 def get_png_hypers(check_methods):
@@ -499,33 +507,21 @@ def get_pdf_hypers(check_methods):
 fd_png = pn.widgets.FileDownload(callback=get_png_hypers, filename='hypers.png', width=200)
 fd_pdf = pn.widgets.FileDownload(callback=get_pdf_hypers, filename='hypers.pdf', width=200)
 
-no_results_pane = pn.Column(None)
-
-# the "Fit" button
+# "Fit" button
 fit_button = pn.widgets.Button(name='Fit', width=200, button_type='primary')
 def b_fit(event):
     global last_results
+    results_pane.visible = True
+    ready_check.value = False
     s, v0 = read_data(data_input_text.value)
     last_results = compute_methods(s, v0)
 
     results_text.object = report_str(last_results['results'])
+    ready_check.value = True
 
-    otherp = draw_other_plots()
-
-    results_pane = pn.Column(pn.layout.Divider(), "### Parameter values",
-                             results_text,
-                             '### Plots',
-                             pn.Row(change_plot,
-                                    pn.Column(pn.Spacer(height=50),
-                                              check_methods,
-                                              fd_png,
-                                              fd_pdf)),
-                             pn.Row(otherp))
-    app_column[-1] = results_pane
 fit_button.on_click(b_fit)
 
 top_buttons = pn.Row(edit_table_group, clear_button)
-data_input_row = pn.Row(data_input_column, pn.Column(top_buttons, demo_button, fit_button))
 
 header = """## Michaelis-Menten equation fitting
 
@@ -536,7 +532,21 @@ by António Ferreira
 ### Data input
 """
 
-app_column = pn.Column(header, data_input_row, no_results_pane)
+data_input_row = pn.Row(data_input_column, pn.Column(top_buttons, demo_button, fit_button))
+
+results_pane = pn.Column(pn.layout.Divider(), "### Parameter values",
+                         results_text,
+                         ready_check, # remains hidden
+                         '### Plots',
+                         pn.Row(draw_main_plot,
+                            pn.Column(pn.Spacer(height=50),
+                                        check_methods,
+                                        fd_png,
+                                        fd_pdf)),
+                         pn.Row(draw_other_plots))
+results_pane.visible = False
+
+app_column = pn.Column(header, data_input_row, results_pane)
 
 app_column.servable()
 # app_column
