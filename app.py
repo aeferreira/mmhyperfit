@@ -3,6 +3,7 @@
    Wilkinson [TODO: insert reference] data is used to test the methods."""
 
 from io import StringIO, BytesIO
+from itertools import combinations
 
 import numpy as np
 import pandas as pd
@@ -61,9 +62,7 @@ class ResDict(Parameterized):
 
     # Optional for direct liner plot:
     intersections = param.Array(default=None, doc='dlp intersection coordinates')
-    # intersections_y = param.Array(default=None, doc='y-values of intersections')
-    straights_m = param.Array(default=None, doc='slopes of dlp lines')
-    straights_b = param.Array(default=None, doc='intercepts of dlp lines')
+    dlp_lines = param.Array(default=None, doc='slopes and intercepts of dlp lines')
 
 # ------------ methods --------------------------
 # all methods accept numpy arrays as input
@@ -139,25 +138,18 @@ def cornish_bowden(a, v0):
     straights = [(v/s, v) for v, s in zip(v0, a)]
     intersects = []
 
-    n = len(straights)
-    for i in range(0, n-1):
-        for j in range(i+1, n):
-            ri_m, ri_b = straights[i]
-            rj_m, rj_b = straights[j]
-            x = (rj_b - ri_b) / (ri_m - rj_m)
-            y = (ri_b * rj_m - rj_b * ri_m) / (rj_m - ri_m)
-            intersects.append((x, y))
+    for ((m1, b1), (m2, b2)) in combinations(straights, 2):
+        xintersect = (b2 - b1) / (m1 - m2)
+        yintersect = (b1 * m2 - b2 * m1) / (m2 -m1)
+        intersects.append((xintersect, yintersect))
     intersects = np.array(intersects)
 
-    V = np.median(intersects[:,1])
-    Km = np.median(intersects[:,0])
+    Km, V = np.median(intersects, axis=0)
     # TODO: compute CIs
-    res = ResDict(method='Eisenthal-C.Bowden',
+    return ResDict(method='Eisenthal-C.Bowden',
                    V=V, Km=Km, x=a, y=v0,
                    intersections=intersects,
-                   straights_m=v0 / a,
-                   straights_b=v0)
-    return res
+                   dlp_lines=np.array(straights))
 
 
 def compute_methods(a, v0):
@@ -354,6 +346,7 @@ def draw_cornish_bowden_plot(ax, results,
     a = results.x
     v0 = results.y
     intersections = results.intersections
+    lines = results.dlp_lines
     if title is None:
         title = results.method
 
@@ -366,14 +359,16 @@ def draw_cornish_bowden_plot(ax, results,
     ax.set_ylim(0, ymax)
     ax.set_xlim(-xmin, xmax)
 
-    for ai, v0i in zip(a, v0):
-        ymaxi = v0i / ai * (xmax + ai)
-        ax.plot([-ai, xmax], [0, ymaxi],
+    # plot lines
+    for m, b in lines:
+        ymaxi = m * xmax + b
+        ax.plot([-b/m, xmax], [0, ymaxi],
                   color='gray',
                   linestyle='solid',
                   lw=1)
+
+    # plot intersection points
     for x, y in map(tuple, intersections):
-    # for x, y in zip(intersections[:, 0], intersections[:, 1]):
         ax.plot(x, y,
                    marker='o',
                    linestyle='None',
@@ -381,6 +376,8 @@ def draw_cornish_bowden_plot(ax, results,
                    markeredgecolor='black',
                    markeredgewidth=1,
                    markersize=4)
+
+    # plot median intersection
     ax.plot(results.Km, results.V,
                marker='o',
                linestyle='None',
