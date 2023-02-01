@@ -67,15 +67,9 @@ class ResDict(Parameterized):
 # ------------ methods --------------------------
 # all methods accept numpy arrays as input
 
+
 def lineweaver_burk(a, v0):
-    while 0 in a:
-        index = np.where(a == 0)
-        a = np.delete(a, index)
-        v0 = np.delete(v0, index)
-    while 0 in v0:
-        index = np.where(v0 == 0)
-        a = np.delete(a, index)
-        v0 = np.delete(v0, index)
+    """Compute parameters by Lineweaver-Burk linearization."""
     x, y = 1/a, 1/v0
     m, b, Sm, Sb, _, _ = lin_regression(x, y)
     V = 1.0 / b
@@ -87,14 +81,7 @@ def lineweaver_burk(a, v0):
 
 
 def hanes_woolf(a, v0):
-    while 0 in a:
-        index = np.where(a == 0)
-        a = np.delete(a, index)
-        v0 = np.delete(v0, index)
-    while 0 in v0:
-        index = np.where(v0 == 0)
-        a = np.delete(a, index)
-        v0 = np.delete(v0, index)
+    """Compute parameters by Hanes linearization."""
     x = a
     y = a/v0
     m, b, Sm, Sb, _, _ = lin_regression(x, y)
@@ -107,14 +94,7 @@ def hanes_woolf(a, v0):
 
 
 def eadie_hofstee(a, v0):
-    while 0 in a:
-        index = np.where(a == 0)
-        a = np.delete(a, index)
-        v0 = np.delete(v0, index)
-    while 0 in v0:
-        index = np.where(v0 == 0)
-        a = np.delete(a, index)
-        v0 = np.delete(v0, index)
+    """Compute parameters by Eadie-Hofstee linearization."""
     x = v0/a
     y = v0
     m, b, Sm, Sb, _, _ = lin_regression(x, y)
@@ -127,6 +107,7 @@ def eadie_hofstee(a, v0):
 
 
 def hyperbolic(a, v0):
+    """Compute parameters by non-linear least-quares regression."""
     popt, pcov, *_ = curve_fit(MM, a, v0, p0=(max(v0), np.median(a)))
     errors = np.sqrt(np.diag(pcov))
     V, Km = popt[0:2]
@@ -135,6 +116,7 @@ def hyperbolic(a, v0):
 
 
 def cornish_bowden(a, v0):
+    """Compute parameters by the Direct Linear Plot."""
     straights = [(v/s, v) for v, s in zip(v0, a)]
     intersects = []
 
@@ -154,16 +136,25 @@ def cornish_bowden(a, v0):
 
 def compute_methods(a, v0):
     """Compute results for all methods."""
-    m_table  = (hyperbolic, lineweaver_burk, hanes_woolf, eadie_hofstee, cornish_bowden)
-    results = [m(a, v0) for m in m_table]
+    # remove points with zero
+    nonzero = np.logical_and(a != 0, v0 != 0)
+    a_nonzero = a.compress(nonzero)
+    v0_nonzero = v0.compress(nonzero)
+
+    # apply all methods
+    m_table  = (hyperbolic, lineweaver_burk,
+                hanes_woolf, eadie_hofstee,
+                cornish_bowden)
+    results = [method(a_nonzero, v0_nonzero) for method in m_table]
     return {'a': a, 'v0': v0, 'results': results}
 
 # ------------- (str) report of results ------
 
-def repr_x_deltax(x, deltax):
-    if deltax is None:
-        return f'{x:6.3f}'
-    return f"{x:6.3f} ± {deltax:6.3f}"
+def repr_x_deltax(value, delta):
+    if delta is None:
+        return f'{value:6.3f}'
+    return f"{value:6.3f} ± {delta:6.3f}"
+
 
 def report_str(results):
     lines = []
@@ -176,7 +167,7 @@ def report_str(results):
 # ------------ plots --------------------------
 
 # constants
-demo_data = """0.138 0.148
+DEMO_DATA = """0.138 0.148
 0.220 0.171
 0.291 0.234
 0.560 0.324
@@ -433,7 +424,7 @@ edit_table_group.value = 'Edit'
 
 demo_button = pn.widgets.Button(name='Demo data', width=200)
 def b_demo(event):
-    data_input_text.value = demo_data
+    data_input_text.value = DEMO_DATA
     edit_table_group.value = 'Edit'
 demo_button.on_click(b_demo)
 
