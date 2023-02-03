@@ -184,14 +184,6 @@ default_color_scheme = ('darkviolet',
 empty_df = pd.DataFrame({'substrate': [0], 'rate':[0]})
 empty_df.index.name = '#'
 
-fig0 = Figure(figsize=(8, 6))
-ax0 = fig0.subplots()
-t = ax0.text(0.5, 0.5, 'no figure generated')
-
-fig1 = Figure(figsize=(12, 8))
-ax0 = fig1.subplots()
-t = ax0.text(0.5, 0.5, 'no figure generated')
-
 last_results = None
 all_methods_list = ['Hyperbolic Regression',
                     'Lineweaver-Burk',
@@ -220,16 +212,25 @@ def read_data(data):
 
 def hypers_mpl(results,
                display_methods=tuple(all_methods_list),
+               blank= True, 
                colorscheme=None,
                title=None,
                legend=True,
                grid=True):
 
+    if blank:
+        fig0 = Figure(figsize=(8, 6))
+        ax0 = fig0.subplots()
+        t = ax0.text(0.5, 0.5, 'no figure generated')
+        return fig0
+
     a = results['a']
     v0 = results['v0']
     all_results = results['results']
     plt.rc('mathtext', fontset='cm')
-    f, ax = plt.subplots(1, 1, figsize=(8,6))
+    f = Figure(figsize=(8, 6))
+    ax = f.subplots()
+    # f, ax = plt.subplots(1, 1, figsize=(8,6))
 
     if colorscheme is None:
         colorscheme = default_color_scheme
@@ -269,13 +270,22 @@ def hypers_mpl(results,
     return f
 
 
-def plot_others_mpl(results, colorscheme=None, grid=True):
+def plot_others_mpl(results, colorscheme=None, grid=True, blank=True):
+    if blank:
+        fig1 = Figure(figsize=(12, 8))
+        ax0 = fig1.subplots()
+        t = ax0.text(0.5, 0.5, 'no figure generated')
+        return fig1
+
     all_r = results['results']
     if colorscheme is None:
         colorscheme = default_color_scheme
     plt.rc('mathtext', fontset='cm')
-    f, ax = plt.subplots(2, 2, figsize=(12, 8))
-    ax = [ax[0][0], ax[0][1], ax[1][0], ax[1][1]]
+
+    f = Figure(figsize=(12, 8))
+    ax = f.subplots(2, 2)
+    # f, ax = plt.subplots(2, 2, figsize=(12, 8))
+    ax = ax.flatten()
     for i in range(0,3):
         draw_lin_plot(ax[i], all_r[i+1], color=colorscheme[i+1], grid=grid)
     draw_cornish_bowden_plot(ax[3], all_r[4], color=colorscheme[4], grid=grid)
@@ -455,29 +465,25 @@ ready_check = pn.widgets.Checkbox(name='Ready')
 ready_check.value = False
 ready_check.visible = False
 
-@pn.depends(check_methods, ready_check)
+
+@pn.depends(check_methods, ready_check, watch=True)
 def draw_main_plot(check_methods, ready_check):
     global last_results
-    if ready_check:
-        f = hypers_mpl(last_results, display_methods=check_methods)
-    else:
-        f = fig0
-    return pn.pane.Matplotlib(f)
+    f = hypers_mpl(last_results, display_methods=check_methods, blank=not ready_check)
+    mpl_pane_hypers.object = f
 
-@pn.depends(check_methods, ready_check)
-def draw_other_plots(check_methods, ready_check):
+
+@pn.depends(ready_check, watch=True)
+def draw_other_plots(ready_check):
     global last_results
-    if ready_check:
-        f = plot_others_mpl(last_results)
-    else:
-        f = fig1
-    return pn.pane.Matplotlib(f)
+    f = plot_others_mpl(last_results, blank=not ready_check)
+    mpl_pane_others.object = f
 
 @pn.depends(check_methods)
 def get_png_hypers(check_methods):
     global last_results
     if last_results is not None:
-        f = hypers_mpl(last_results, display_methods=check_methods)
+        f = hypers_mpl(last_results, display_methods=check_methods, blank=False)
         bio = BytesIO()
         f.savefig(bio, format='png', dpi=100)
         bio.seek(0)
@@ -488,7 +494,7 @@ def get_png_hypers(check_methods):
 def get_pdf_hypers(check_methods):
     global last_results
     if last_results is not None:
-        f = hypers_mpl(last_results, display_methods=check_methods)
+        f = hypers_mpl(last_results, display_methods=check_methods, blank=False)
         bio = BytesIO()
         f.savefig(bio, format='pdf')
         bio.seek(0)
@@ -523,18 +529,21 @@ by António Ferreira
 ### Data input
 """
 
+mpl_pane_hypers = pn.panel(hypers_mpl(last_results, blank=True))
+mpl_pane_others = pn.panel(plot_others_mpl(last_results, blank=True))
+
 data_input_row = pn.Row(data_input_column, pn.Column(top_buttons, demo_button, fit_button))
 
 results_pane = pn.Column(pn.layout.Divider(), "### Parameter values",
                          results_text,
                          ready_check, # remains hidden
                          '### Plots',
-                         pn.Row(draw_main_plot,
+                         pn.Row(mpl_pane_hypers,
                             pn.Column(pn.Spacer(height=50),
                                         check_methods,
                                         fd_png,
                                         fd_pdf)),
-                         pn.Row(draw_other_plots))
+                         pn.Row(mpl_pane_others))
 results_pane.visible = False
 
 app_column = pn.Column(header, data_input_row, results_pane)
