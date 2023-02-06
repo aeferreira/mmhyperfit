@@ -11,16 +11,18 @@ from scipy.optimize import curve_fit
 from scipy.stats import linregress
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
-from bokeh.models.widgets.tables import NumberFormatter, BooleanFormatter
+from bokeh.models.widgets.tables import NumberFormatter
 
 import param
-from param import Parameter, Parameterized
+
 import panel as pn
+from panel.widgets import (CheckBoxGroup, FileDownload)
 pn.extension('tabulator')
 pn.extension('notifications')
 pn.extension(notifications=True)
 
 # fitting methods section
+
 
 def lin_regression(xvalues, yvalues):
     """Simple linear regression (y = m * x + b + error)."""
@@ -36,23 +38,26 @@ def lin_regression(xvalues, yvalues):
 
 
 def MM(a, V, Km):
+    """The Michaelis-Menten rate law."""
     return V * a / (Km + a)
 
 
-class ResDict(Parameterized):
+class ResDict(param.Parameterized):
     """Class to hold data from a computation."""
 
     method = param.String(default='Hanes', doc='Name of the method used')
     error = param.String(default=None, doc='Computation error description')
 
-    V = param.Number(default=0.0, bounds=(0.0, None), doc='limiting rate')
-    Km = param.Number(default=0.0, bounds=(0.0, None), doc='Michaelis constant')
+    V = param.Number(default=0.0, bounds=(0.0, None),
+                     doc='limiting rate')
+    Km = param.Number(default=0.0, bounds=(0.0, None),
+                      doc='Michaelis constant')
 
     # Optional, depending on the method:
     SE_V = param.Number(default=None, bounds=(0.0, None),
-                       doc='standard error of the limiting rate')
+                        doc='standard error of the limiting rate')
     SE_Km = param.Number(default=None, bounds=(0.0, None),
-                       doc='standard error of the Michelis constant')
+                         doc='standard error of the Michelis constant')
 
     # Optional for linearizations:
     m = param.Number(default=None, doc='slope of linearization')
@@ -61,8 +66,10 @@ class ResDict(Parameterized):
     y = param.Array(default=None, doc='y-values during linearization')
 
     # Optional for direct liner plot:
-    intersections = param.Array(default=None, doc='dlp intersection coordinates')
-    dlp_lines = param.Array(default=None, doc='slopes and intercepts of dlp lines')
+    intersections = param.Array(default=None,
+                                doc='dlp intersection coordinates')
+    dlp_lines = param.Array(default=None,
+                            doc='slopes and intercepts of dlp lines')
 
 # ------------ methods --------------------------
 # all methods accept numpy arrays as input
@@ -77,7 +84,7 @@ def lineweaver_burk(a, v0):
     SV = V * Sb / b
     SKm = Km * np.sqrt((Sm/m)**2 + (Sb/b)**2)
     return ResDict(method='Lineweaver-Burk', V=V, Km=Km, SE_V=SV, SE_Km=SKm,
-                    x=x, y=y, m=m, b=b)
+                   x=x, y=y, m=m, b=b)
 
 
 def hanes_woolf(a, v0):
@@ -90,7 +97,7 @@ def hanes_woolf(a, v0):
     SV = V * Sm / m
     SKm = Km * np.sqrt((Sm/m)**2 + (Sb/b)**2)
     return ResDict(method='Hanes', V=V, Km=Km, SE_V=SV, SE_Km=SKm,
-                    x=x, y=y, m=m, b=b)
+                   x=x, y=y, m=m, b=b)
 
 
 def eadie_hofstee(a, v0):
@@ -103,7 +110,7 @@ def eadie_hofstee(a, v0):
     SV = Sb
     SKm = Sm
     return ResDict(method='Eadie-Hofstee', V=V, Km=Km, SE_V=SV, SE_Km=SKm,
-                    x=x, y=y, m=m, b=b)
+                   x=x, y=y, m=m, b=b)
 
 
 def hyperbolic(a, v0):
@@ -112,7 +119,8 @@ def hyperbolic(a, v0):
     errors = np.sqrt(np.diag(pcov))
     V, Km = popt[0:2]
     SV, SKm = errors[0:2]
-    return ResDict(method='Hyperbolic regression', V=V, Km=Km, SE_V=SV, SE_Km=SKm, x=a, y=v0)
+    return ResDict(method='Hyperbolic regression',
+                   V=V, Km=Km, SE_V=SV, SE_Km=SKm, x=a, y=v0)
 
 
 def cornish_bowden(a, v0):
@@ -122,7 +130,7 @@ def cornish_bowden(a, v0):
 
     for ((m1, b1), (m2, b2)) in combinations(straights, 2):
         xintersect = (b2 - b1) / (m1 - m2)
-        yintersect = (b1 * m2 - b2 * m1) / (m2 -m1)
+        yintersect = (b1 * m2 - b2 * m1) / (m2 - m1)
         intersects.append((xintersect, yintersect))
     intersects = np.array(intersects)
 
@@ -142,13 +150,14 @@ def compute_methods(a, v0):
     v0_nonzero = v0.compress(nonzero)
 
     # apply all methods
-    m_table  = (hyperbolic, lineweaver_burk,
-                hanes_woolf, eadie_hofstee,
-                cornish_bowden)
+    m_table = (hyperbolic, lineweaver_burk,
+               hanes_woolf, eadie_hofstee,
+               cornish_bowden)
     results = [method(a_nonzero, v0_nonzero) for method in m_table]
     return {'a': a, 'v0': v0, 'results': results}
 
 # ------------- (str) report of results ------
+
 
 def repr_x_deltax(value, delta):
     if delta is None:
@@ -163,6 +172,7 @@ def report_str(results):
         lines.append('   V  = ' + repr_x_deltax(result.V, result.SE_V))
         lines.append('   Km = ' + repr_x_deltax(result.Km, result.SE_Km))
     return '\n'.join(lines)
+
 
 # ------------ plots --------------------------
 
@@ -181,47 +191,27 @@ default_color_scheme = ('darkviolet',
                         'cornflowerblue',
                         'goldenrod')
 
-empty_df = pd.DataFrame({'substrate': [0], 'rate':[0]})
+empty_df = pd.DataFrame({'substrate': [0], 'rate': [0]})
 empty_df.index.name = '#'
 
-last_results = None
-all_methods_list = ['Hyperbolic Regression',
+all_methods_list = ('Hyperbolic Regression',
                     'Lineweaver-Burk',
                     'Hanes',
                     'Eadie-Hofstee',
-                    'Eisenthal-C.Bowden']
-
-def read_data(data):
-    a = []
-    v0 = []
-    for line in data.splitlines():
-        line = line.strip()
-        if len(line) == 0:
-            continue
-        if line.startswith('#'):
-            continue
-        x1, x2 = line.split(None, 2)
-        try:
-            x1, x2 = float(x1), float(x2)
-        except ValueError:
-            continue
-        a.append(x1)
-        v0.append(x2)
-    return np.array(a), np.array(v0)
+                    'Eisenthal-C.Bowden')
 
 
-def hypers_mpl(results,
-               display_methods=tuple(all_methods_list),
-               blank= True, 
+def hypers_mpl(results=None,
+               display_methods=all_methods_list,
                colorscheme=None,
                title=None,
                legend=True,
                grid=True):
 
-    if blank:
+    if results is None:
         fig0 = Figure(figsize=(8, 6))
         ax0 = fig0.subplots()
-        t = ax0.text(0.5, 0.5, 'no figure generated')
+        ax0.text(0.5, 0.5, 'no figure generated')
         return fig0
 
     a = results['a']
@@ -230,7 +220,6 @@ def hypers_mpl(results,
     plt.rc('mathtext', fontset='cm')
     f = Figure(figsize=(8, 6))
     ax = f.subplots()
-    # f, ax = plt.subplots(1, 1, figsize=(8,6))
 
     if colorscheme is None:
         colorscheme = default_color_scheme
@@ -256,11 +245,11 @@ def hypers_mpl(results,
                 color=color, linestyle='solid', lw=2)
 
     ax.plot(a, v0, marker='o',
-                   linestyle='None',
-                   markerfacecolor='white',
-                   markeredgecolor='black',
-                   markeredgewidth=1.5,
-                   markersize=6)
+            linestyle='None',
+            markerfacecolor='white',
+            markeredgecolor='black',
+            markeredgewidth=1.5,
+            markersize=6)
     ax.set_xlabel('$a$', fontsize=16)
     ax.set_ylabel('$v_o$', fontsize=16)
     if legend:
@@ -270,11 +259,11 @@ def hypers_mpl(results,
     return f
 
 
-def plot_others_mpl(results, colorscheme=None, grid=True, blank=True):
-    if blank:
+def plot_others_mpl(results=None, colorscheme=None, grid=True):
+    if results is None:
         fig1 = Figure(figsize=(12, 8))
         ax0 = fig1.subplots()
-        t = ax0.text(0.5, 0.5, 'no figure generated')
+        ax0.text(0.5, 0.5, 'no figure generated')
         return fig1
 
     all_r = results['results']
@@ -284,9 +273,8 @@ def plot_others_mpl(results, colorscheme=None, grid=True, blank=True):
 
     f = Figure(figsize=(12, 8))
     ax = f.subplots(2, 2)
-    # f, ax = plt.subplots(2, 2, figsize=(12, 8))
     ax = ax.flatten()
-    for i in range(0,3):
+    for i in range(0, 3):
         draw_lin_plot(ax[i], all_r[i+1], color=colorscheme[i+1], grid=grid)
     draw_cornish_bowden_plot(ax[3], all_r[4], color=colorscheme[4], grid=grid)
     f.tight_layout()
@@ -314,15 +302,15 @@ def draw_lin_plot(ax, result, color='black',
     ax.set_ylim(0, ytop)
     ax.set_xlim(0, xmax)
 
-    ax.plot([0,xmax], [result.b, ymax], color=color,
-                  linestyle='solid', lw=2)
+    ax.plot([0, xmax], [result.b, ymax], color=color,
+            linestyle='solid', lw=2)
 
     ax.plot(x, y,  marker='o',
-                   linestyle='None',
-                   markerfacecolor='white',
-                   markeredgecolor='black',
-                   markeredgewidth=1.5,
-                   markersize=6)
+            linestyle='None',
+            markerfacecolor='white',
+            markeredgecolor='black',
+            markeredgewidth=1.5,
+            markersize=6)
 
     if result.method.startswith('Lineweaver'):
         xlabel = '$1/a$'
@@ -341,13 +329,13 @@ def draw_lin_plot(ax, result, color='black',
     if grid:
         ax.grid()
 
+
 def draw_cornish_bowden_plot(ax, results,
                              color='black',
                              title=None,
                              grid=True):
 
     a = results.x
-    v0 = results.y
     intersections = results.intersections
     lines = results.dlp_lines
     if title is None:
@@ -356,7 +344,6 @@ def draw_cornish_bowden_plot(ax, results,
     xmax = max(intersections[:, 0]) * 1.1
     ymax = max(intersections[:, 1]) * 1.1
     xmin = max(a) * 1.1
-    ymin = 0.0
 
     ax.set_title(title)
     ax.set_ylim(0, ymax)
@@ -366,32 +353,52 @@ def draw_cornish_bowden_plot(ax, results,
     for m, b in lines:
         ymaxi = m * xmax + b
         ax.plot([-b/m, xmax], [0, ymaxi],
-                  color='gray',
-                  linestyle='solid',
-                  lw=1)
+                color='gray',
+                linestyle='solid',
+                lw=1)
 
     # plot intersection points
     for x, y in map(tuple, intersections):
         ax.plot(x, y,
-                   marker='o',
-                   linestyle='None',
-                   markerfacecolor='white',
-                   markeredgecolor='black',
-                   markeredgewidth=1,
-                   markersize=4)
+                marker='o',
+                linestyle='None',
+                markerfacecolor='white',
+                markeredgecolor='black',
+                markeredgewidth=1,
+                markersize=4)
 
     # plot median intersection
     ax.plot(results.Km, results.V,
-               marker='o',
-               linestyle='None',
-               markerfacecolor='white',
-               markeredgecolor=color,
-               markeredgewidth=1.5,
-               markersize=6)
+            marker='o',
+            linestyle='None',
+            markerfacecolor='white',
+            markeredgecolor=color,
+            markeredgewidth=1.5,
+            markersize=6)
     ax.set_xlabel('Km')
     ax.set_ylabel('V')
     if grid:
         ax.grid()
+
+
+def read_data(data):
+    a = []
+    v0 = []
+    for line in data.splitlines():
+        line = line.strip()
+        if len(line) == 0:
+            continue
+        if line.startswith('#'):
+            continue
+        x1, x2 = line.split(None, 2)
+        try:
+            x1, x2 = float(x1), float(x2)
+        except ValueError:
+            continue
+        a.append(x1)
+        v0.append(x2)
+    return np.array(a), np.array(v0)
+
 
 def read_data_df(data_text):
     tf = StringIO(data_text)
@@ -409,7 +416,7 @@ data_input_text = pn.widgets.input.TextAreaInput(height=300, width=200,
                                                  min_width=100,
                                                  height_policy='min')
 
-#data_dfwidget = pn.widgets.DataFrame(empty_df, width=300, disabled=True)
+# data_dfwidget = pn.widgets.DataFrame(empty_df, width=300, disabled=True)
 bokeh_formatters = {
     'rate': NumberFormatter(format='0.00000'),
     'substrate': NumberFormatter(format='0.00000'),
@@ -421,27 +428,38 @@ data_input_column = pn.Column(data_input_text)
 
 # data input buttons
 clear_button = pn.widgets.Button(name='Clear', button_type='danger', width=80)
+
+
 def b_clear(event):
     results_pane.visible = False
     data_input_text.value = data_input_text.placeholder
     edit_table_group.value = 'Edit'
     results_text.object = ''
-    ready_check.value = False
+    mpl_pane_hypers.object = hypers_mpl(results=None)
+    mpl_pane_others.object = plot_others_mpl(results=None)
+
+
 clear_button.on_click(b_clear)
 
-edit_table_group = pn.widgets.RadioButtonGroup(options=['Edit', 'Check'], width=100)
+edit_table_group = pn.widgets.RadioButtonGroup(options=['Edit', 'Check'],
+                                               width=100)
 edit_table_group.value = 'Edit'
 
 demo_button = pn.widgets.Button(name='Demo data', width=200)
+
+
 def b_demo(event):
     data_input_text.value = DEMO_DATA
     edit_table_group.value = 'Edit'
+
+
 demo_button.on_click(b_demo)
+
 
 def change_data_view(event):
     if event.new == 'Check':
         a, v0 = read_data(data_input_text.value)
-        df = pd.DataFrame({'rate':v0}, index=a)
+        df = pd.DataFrame({'rate': v0}, index=a)
         df.index.name = 'substrate'
 
         data_dfwidget.value = df
@@ -451,70 +469,77 @@ def change_data_view(event):
     else:
         data_input_column[0] = data_input_text
 
+
 edit_table_group.param.watch(change_data_view, 'value')
+
 
 # results
 
+class MMResults(param.Parameterized):
+    last_results = param.Dict(dict())
+    check_methods = param.ListSelector(default=list(all_methods_list),
+                                       objects=list(all_methods_list))
+
+    # triggers new plots resulting from a new computation
+    e = param.Event()
+
+    @param.depends('check_methods', 'e', watch=True)
+    def draw_main_plot(self):
+        f = hypers_mpl(self.last_results,
+                       display_methods=self.check_methods)
+        mpl_pane_hypers.object = f
+
+    @param.depends('e', watch=True)
+    def draw_other_plots(self):
+        f = plot_others_mpl(self.last_results)
+        mpl_pane_others.object = f
+
+    def get_png_hypers(self):
+        if self.last_results is not None:
+            f = hypers_mpl(self.last_results,
+                           display_methods=self.check_methods)
+            bio = BytesIO()
+            f.savefig(bio, format='png', dpi=100)
+            bio.seek(0)
+            return bio
+        return None
+
+    def get_pdf_hypers(self):
+        if self.last_results is not None:
+            f = hypers_mpl(self.last_results,
+                           display_methods=self.check_methods)
+            bio = BytesIO()
+            f.savefig(bio, format='pdf')
+            bio.seek(0)
+            return bio
+        return None
+
+
+results_handler = MMResults()
+
 results_text = pn.pane.Str('', style={'font-family': "monospace"})
 
-check_methods = pn.widgets.CheckBoxGroup(options=all_methods_list,
-                                         value=all_methods_list,
-                                         inline=False)
-
-ready_check = pn.widgets.Checkbox(name='Ready')
-ready_check.value = False
-ready_check.visible = False
-
-
-@pn.depends(check_methods, ready_check, watch=True)
-def draw_main_plot(check_methods, ready_check):
-    global last_results
-    f = hypers_mpl(last_results, display_methods=check_methods, blank=not ready_check)
-    mpl_pane_hypers.object = f
-
-
-@pn.depends(ready_check, watch=True)
-def draw_other_plots(ready_check):
-    global last_results
-    f = plot_others_mpl(last_results, blank=not ready_check)
-    mpl_pane_others.object = f
-
-@pn.depends(check_methods)
-def get_png_hypers(check_methods):
-    global last_results
-    if last_results is not None:
-        f = hypers_mpl(last_results, display_methods=check_methods, blank=False)
-        bio = BytesIO()
-        f.savefig(bio, format='png', dpi=100)
-        bio.seek(0)
-        return bio
-    return None
-
-@pn.depends(check_methods)
-def get_pdf_hypers(check_methods):
-    global last_results
-    if last_results is not None:
-        f = hypers_mpl(last_results, display_methods=check_methods, blank=False)
-        bio = BytesIO()
-        f.savefig(bio, format='pdf')
-        bio.seek(0)
-        return bio
-    return None
-
-fd_png = pn.widgets.FileDownload(callback=get_png_hypers, filename='hypers.png', width=200)
-fd_pdf = pn.widgets.FileDownload(callback=get_pdf_hypers, filename='hypers.pdf', width=200)
+fd_png = FileDownload(callback=results_handler.get_png_hypers,
+                      filename='hypers.png', width=200)
+fd_pdf = FileDownload(callback=results_handler.get_pdf_hypers,
+                      filename='hypers.pdf', width=200)
 
 # "Fit" button
 fit_button = pn.widgets.Button(name='Fit', width=200, button_type='primary')
-def b_fit(event):
-    global last_results
-    results_pane.visible = True
-    ready_check.value = False
-    s, v0 = read_data(data_input_text.value)
-    last_results = compute_methods(s, v0)
 
-    results_text.object = report_str(last_results['results'])
-    ready_check.value = True
+
+def b_fit(event):
+    # make results_pane visible and draw
+    results_pane.visible = True
+
+    # compute results
+    s, v0 = read_data(data_input_text.value)
+    results_handler.last_results = compute_methods(s, v0)
+
+    # fill results text are and trigger the drawing of new plots
+    results_text.object = report_str(results_handler.last_results['results'])
+    results_handler.e = True
+
 
 fit_button.on_click(b_fit)
 
@@ -529,21 +554,27 @@ by António Ferreira
 ### Data input
 """
 
-mpl_pane_hypers = pn.panel(hypers_mpl(last_results, blank=True))
-mpl_pane_others = pn.panel(plot_others_mpl(last_results, blank=True))
+# panes holding matplotlib plots
+mpl_pane_hypers = pn.panel(hypers_mpl(results=None))
+mpl_pane_others = pn.panel(plot_others_mpl(results=None))
 
-data_input_row = pn.Row(data_input_column, pn.Column(top_buttons, demo_button, fit_button))
+data_input_row = pn.Row(data_input_column,
+                        pn.Column(top_buttons, demo_button, fit_button))
+
+method_choice = CheckBoxGroup.from_param(results_handler.param.check_methods,
+                                         inline=False)
 
 results_pane = pn.Column(pn.layout.Divider(), "### Parameter values",
                          results_text,
-                         ready_check, # remains hidden
                          '### Plots',
                          pn.Row(mpl_pane_hypers,
-                            pn.Column(pn.Spacer(height=50),
-                                        check_methods,
-                                        fd_png,
-                                        fd_pdf)),
+                                pn.Column(pn.Spacer(height=50),
+                                          method_choice,
+                                          fd_png,
+                                          fd_pdf)),
                          pn.Row(mpl_pane_others))
+
+# start results pane hidden
 results_pane.visible = False
 
 app_column = pn.Column(header, data_input_row, results_pane)
