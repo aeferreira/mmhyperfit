@@ -1,6 +1,4 @@
-"""Methods to compute Michaelis-Menten equation parameters and statistics.
-
-   Wilkinson [TODO: insert reference] data is used to test the methods."""
+"""Methods to compute Michaelis-Menten equation parameters and statistics."""
 
 from io import StringIO, BytesIO
 from itertools import combinations
@@ -16,13 +14,14 @@ from bokeh.models.widgets.tables import NumberFormatter
 import param
 
 import panel as pn
-from panel.widgets import (CheckBoxGroup, FileDownload)
+from panel.widgets import (Button, CheckBoxGroup,
+                           RadioButtonGroup, FileDownload)
 pn.extension('tabulator')
 pn.extension('notifications')
 pn.extension(notifications=True)
 
-# fitting methods section
 
+# fitting methods section
 
 def lin_regression(xvalues, yvalues):
     """Simple linear regression (y = m * x + b + error)."""
@@ -177,6 +176,15 @@ def report_str(results):
 # ------------ plots --------------------------
 
 # constants
+
+# demo data
+# this is data from
+# [Atkinson, M.R., Jackson, J.F., Morton, R.K.(1961) Biochem. J. 80(2):318-23]
+# (https://doi.org/10.1042/bj0800318),
+# used for method comparison by
+# [Wilkinson, G.N. (1961) Biochem. J. 80(2):324–332]
+# (https://doi.org/10.1042/bj0800324)
+
 DEMO_DATA = """0.138 0.148
 0.220 0.171
 0.291 0.234
@@ -416,7 +424,6 @@ data_input_text = pn.widgets.input.TextAreaInput(height=300, width=200,
                                                  min_width=100,
                                                  height_policy='min')
 
-# data_dfwidget = pn.widgets.DataFrame(empty_df, width=300, disabled=True)
 bokeh_formatters = {
     'rate': NumberFormatter(format='0.00000'),
     'substrate': NumberFormatter(format='0.00000'),
@@ -427,7 +434,7 @@ data_dfwidget = pn.widgets.Tabulator(empty_df, width=200, disabled=True,
 data_input_column = pn.Column(data_input_text)
 
 # data input buttons
-clear_button = pn.widgets.Button(name='Clear', button_type='danger', width=80)
+clear_button = Button(name='Clear', button_type='danger', width=80)
 
 
 def b_clear(event):
@@ -441,11 +448,10 @@ def b_clear(event):
 
 clear_button.on_click(b_clear)
 
-edit_table_group = pn.widgets.RadioButtonGroup(options=['Edit', 'Check'],
-                                               width=100)
+edit_table_group = RadioButtonGroup(options=['Edit', 'Check'], width=100)
 edit_table_group.value = 'Edit'
 
-demo_button = pn.widgets.Button(name='Demo data', width=200)
+demo_button = Button(name='Demo data', width=200)
 
 
 def b_demo(event):
@@ -475,7 +481,7 @@ edit_table_group.param.watch(change_data_view, 'value')
 
 # results
 
-class MMResults(param.Parameterized):
+class MMResultsInterface(param.Parameterized):
     last_results = param.Dict(dict())
     check_methods = param.ListSelector(default=list(all_methods_list),
                                        objects=list(all_methods_list))
@@ -515,7 +521,7 @@ class MMResults(param.Parameterized):
         return None
 
 
-results_handler = MMResults()
+results_handler = MMResultsInterface()
 
 results_text = pn.pane.Str('', style={'font-family': "monospace"})
 
@@ -525,7 +531,7 @@ fd_pdf = FileDownload(callback=results_handler.get_pdf_hypers,
                       filename='hypers.pdf', width=200)
 
 # "Fit" button
-fit_button = pn.widgets.Button(name='Fit', width=200, button_type='primary')
+fit_button = Button(name='Fit', width=200, button_type='primary')
 
 
 def b_fit(event):
