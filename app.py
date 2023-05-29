@@ -16,7 +16,7 @@ import param
 import panel as pn
 from panel.widgets import (Button, CheckBoxGroup,
                            RadioButtonGroup, FileDownload)
-pn.extension('tabulator')
+pn.extension('tabulator', 'mathjax')
 pn.extension('notifications')
 pn.extension(notifications=True)
 
@@ -194,10 +194,10 @@ DEMO_DATA = """0.138 0.148
 """
 
 default_color_scheme = ('darkviolet',
-                        'green',
-                        'darkred',
-                        'cornflowerblue',
-                        'goldenrod')
+                        'tab:green',
+                        'tab:red',
+                        'tab:blue',
+                        'tab:orange')
 
 empty_df = pd.DataFrame({'substrate': [0], 'rate': [0]})
 empty_df.index.name = '#'
@@ -523,7 +523,7 @@ class MMResultsInterface(param.Parameterized):
 
 results_handler = MMResultsInterface()
 
-results_text = pn.pane.Str('', style={'font-family': "monospace"})
+results_text = pn.pane.Str('', styles={'font-family': "monospace"})
 
 fd_png = FileDownload(callback=results_handler.get_png_hypers,
                       filename='hypers.png', width=200)
@@ -551,7 +551,7 @@ fit_button.on_click(b_fit)
 
 top_buttons = pn.Row(edit_table_group, clear_button)
 
-header = """## Michaelis-Menten equation fitting
+header = r"""## Michaelis-Menten equation fitting
 
 $$v_o = \\frac{V a}{K_m + a}$$
 
@@ -583,7 +583,9 @@ results_pane = pn.Column(pn.layout.Divider(), "### Parameter values",
 # start results pane hidden
 results_pane.visible = False
 
-app_column = pn.Column(header, data_input_row, results_pane)
+app_column = pn.Column(pn.pane.Markdown(header, renderer='markdown'),
+                       data_input_row,
+                       results_pane)
 
 app_column.servable()
 # app_column
