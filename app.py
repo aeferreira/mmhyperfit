@@ -138,10 +138,17 @@ def cornish_bowden(a, v0):
 
     Km, V = np.median(intersects, axis=0)
     # TODO: compute CIs
-    return ResDict(method='Eisenthal-C.Bowden',
-                   V=V, Km=Km, x=a, y=v0,
-                   intersections=intersects,
-                   dlp_lines=np.array(straights))
+
+    # construct results
+    try:
+        res = ResDict(method='Eisenthal-C.Bowden',
+                      V=V, Km=Km, x=a, y=v0,
+                      intersections=intersects,
+                      dlp_lines=np.array(straights))
+    except ValueError as ve:
+        res = ResDict(method='Eisenthal-C.Bowden',
+                      error=f'Error while computing parameters by\nEisenthal-C.Bowden:\n{ve}')
+    return res
 
 
 def compute_methods(a, v0):
@@ -171,8 +178,11 @@ def report_str(results):
     lines = []
     for result in results:
         lines.append(result.method)
-        lines.append('   V  = ' + repr_x_deltax(result.V, result.SE_V))
-        lines.append('   Km = ' + repr_x_deltax(result.Km, result.SE_Km))
+        if result.error is not None:
+            lines.append(str(result.error))
+        else:
+            lines.append('   V  = ' + repr_x_deltax(result.V, result.SE_V))
+            lines.append('   Km = ' + repr_x_deltax(result.Km, result.SE_Km))
     return '\n'.join(lines)
 
 
@@ -346,14 +356,31 @@ def draw_cornish_bowden_plot(ax, results,
                              title=None,
                              grid=True):
 
+    if results.error is not None:
+        ax.set_ylim(0, 1)
+        ax.set_xlim(0, 1)
+        ax.text(0.5, 0.5, 'no figure generated')
+        return
     a = results.x
     intersections = results.intersections
     lines = results.dlp_lines
     if title is None:
         title = results.method
 
-    xmax = max(intersections[:, 0]) * 1.1
-    ymax = max(intersections[:, 1]) * 1.1
+
+    # keep finite intersections (might be Inf)
+    finite_intersections = np.logical_and(np.isfinite(intersections[:, 0]),
+                                          np.isfinite(intersections[:, 1]))
+    viz_intersections = np.compress(finite_intersections, intersections, axis=0)
+
+    # print('intersections ---------------')
+    # print(intersections)
+
+    # print('viz_intersections ---------------')
+    # print(viz_intersections)
+
+    xmax = max(viz_intersections[:, 0]) * 1.1
+    ymax = max(viz_intersections[:, 1]) * 1.1
     xmin = max(a) * 1.1
 
     ax.set_title(title)
@@ -369,7 +396,7 @@ def draw_cornish_bowden_plot(ax, results,
                 lw=1)
 
     # plot intersection points
-    for x, y in map(tuple, intersections):
+    for x, y in map(tuple, viz_intersections):
         ax.plot(x, y,
                 marker='o',
                 linestyle='None',
