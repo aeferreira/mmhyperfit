@@ -20,8 +20,8 @@ pn.extension('tabulator', 'mathjax')
 pn.extension('notifications')
 pn.extension(notifications=True)
 
-
 # fitting methods section
+
 
 def lin_regression(xvalues, yvalues):
     """Simple linear regression (y = m * x + b + error)."""
@@ -82,7 +82,8 @@ def lineweaver_burk(a, v0):
     Km = m / b
     SV = V * Sb / b
     SKm = Km * np.sqrt((Sm/m)**2 + (Sb/b)**2)
-    return ResDict(method='Lineweaver-Burk', V=V, Km=Km, SE_V=SV, SE_Km=SKm,
+    return ResDict(method='Lineweaver-Burk',
+                   V=V, Km=Km, SE_V=SV, SE_Km=SKm,
                    x=x, y=y, m=m, b=b)
 
 
@@ -95,7 +96,8 @@ def hanes_woolf(a, v0):
     Km = b / m
     SV = V * Sm / m
     SKm = Km * np.sqrt((Sm/m)**2 + (Sb/b)**2)
-    return ResDict(method='Hanes', V=V, Km=Km, SE_V=SV, SE_Km=SKm,
+    return ResDict(method='Hanes',
+                   V=V, Km=Km, SE_V=SV, SE_Km=SKm,
                    x=x, y=y, m=m, b=b)
 
 
@@ -108,7 +110,8 @@ def eadie_hofstee(a, v0):
     Km = -m
     SV = Sb
     SKm = Sm
-    return ResDict(method='Eadie-Hofstee', V=V, Km=Km, SE_V=SV, SE_Km=SKm,
+    return ResDict(method='Eadie-Hofstee',
+                   V=V, Km=Km, SE_V=SV, SE_Km=SKm,
                    x=x, y=y, m=m, b=b)
 
 
@@ -217,7 +220,7 @@ def hypers_mpl(results=None,
                grid=True):
 
     if results is None:
-        fig0 = Figure(figsize=(8, 6))
+        fig0 = Figure(figsize=(5, 4), tight_layout=True)
         ax0 = fig0.subplots()
         ax0.text(0.5, 0.5, 'no figure generated')
         return fig0
@@ -226,7 +229,7 @@ def hypers_mpl(results=None,
     v0 = results['v0']
     all_results = results['results']
     plt.rc('mathtext', fontset='cm')
-    f = Figure(figsize=(8, 6))
+    f = Figure(figsize=(5, 4), tight_layout=True)
     ax = f.subplots()
 
     if colorscheme is None:
@@ -269,7 +272,7 @@ def hypers_mpl(results=None,
 
 def plot_others_mpl(results=None, colorscheme=None, grid=True):
     if results is None:
-        fig1 = Figure(figsize=(12, 8))
+        fig1 = Figure(figsize=(9, 6))
         ax0 = fig1.subplots()
         ax0.text(0.5, 0.5, 'no figure generated')
         return fig1
@@ -279,7 +282,7 @@ def plot_others_mpl(results=None, colorscheme=None, grid=True):
         colorscheme = default_color_scheme
     plt.rc('mathtext', fontset='cm')
 
-    f = Figure(figsize=(12, 8))
+    f = Figure(figsize=(9, 6))
     ax = f.subplots(2, 2)
     ax = ax.flatten()
     for i in range(0, 3):
@@ -419,10 +422,9 @@ def read_data_df(data_text):
 # widgetry
 
 # data input
-data_input_text = pn.widgets.input.TextAreaInput(height=300, width=200,
-                                                 min_height=300,
-                                                 min_width=100,
-                                                 height_policy='min')
+data_input_text = pn.widgets.input.TextAreaInput(width=200,
+                                                 sizing_mode='stretch_height',
+                                                 min_height=200)
 
 bokeh_formatters = {
     'rate': NumberFormatter(format='0.00000'),
@@ -431,7 +433,7 @@ bokeh_formatters = {
 data_dfwidget = pn.widgets.Tabulator(empty_df, width=200, disabled=True,
                                      formatters=bokeh_formatters)
 
-data_input_column = pn.Column(data_input_text)
+data_input_column = pn.Column(data_input_text, height=200)
 
 # data input buttons
 clear_button = Button(name='Clear', button_type='danger', width=80)
@@ -587,5 +589,5 @@ app_column = pn.Column(pn.pane.Markdown(header, renderer='markdown'),
                        data_input_row,
                        results_pane)
 
-app_column.servable()
+app_column.servable(title='Michaelis-Menten fitting')
 # app_column
