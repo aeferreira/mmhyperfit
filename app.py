@@ -552,7 +552,7 @@ class MMResultsInterface(param.Parameterized):
 
 results_handler = MMResultsInterface()
 
-results_text = pn.pane.Str('', styles={'font-family': "monospace"})
+results_text = pn.pane.Str('', styles={'font-family': "monospace", 'font-size': '12pt'})
 
 fd_png = FileDownload(callback=results_handler.get_png_hypers,
                       filename='hypers.png', width=200)
