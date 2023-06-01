@@ -5,7 +5,7 @@ from itertools import combinations
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import curve_fit
+from scipy.optimize import (curve_fit, OptimizeWarning)
 from scipy.stats import linregress
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
@@ -23,39 +23,21 @@ pn.extension(notifications=True)
 # fitting methods section
 
 
-def lin_regression(xvalues, yvalues):
-    """Simple linear regression (y = m * x + b + error)."""
-    m, b, R, p, SEm = linregress(xvalues, yvalues)
-
-    # need to compute SEb, linregress only computes SEm
-    n = len(xvalues)
-    SSx = np.var(xvalues, ddof=1) * (n-1)  # this is sum( (x - mean(x))**2 )
-    SEb2 = SEm**2 * (SSx/n + np.mean(xvalues)**2)
-    SEb = SEb2**0.5
-
-    return m, b, SEm, SEb, R, p
-
-
-def MM(a, V, Km):
-    """The Michaelis-Menten rate law."""
-    return V * a / (Km + a)
-
-
 class ResDict(param.Parameterized):
     """Class to hold data from a computation."""
 
     method = param.String(default='Hanes', doc='Name of the method used')
     error = param.String(default=None, doc='Computation error description')
 
-    V = param.Number(default=0.0, bounds=(0.0, None),
+    V = param.Number(default=0.0,  # bounds=(0.0, None),
                      doc='limiting rate')
-    Km = param.Number(default=0.0, bounds=(0.0, None),
+    Km = param.Number(default=0.0,  # bounds=(0.0, None),
                       doc='Michaelis constant')
 
     # Optional, depending on the method:
-    SE_V = param.Number(default=None, bounds=(0.0, None),
+    SE_V = param.Number(default=None,  # bounds=(0.0, None),
                         doc='standard error of the limiting rate')
-    SE_Km = param.Number(default=None, bounds=(0.0, None),
+    SE_Km = param.Number(default=None,  # bounds=(0.0, None),
                          doc='standard error of the Michelis constant')
 
     # Optional for linearizations:
@@ -74,80 +56,109 @@ class ResDict(param.Parameterized):
 # all methods accept numpy arrays as input
 
 
+error_msg = '''Error while computing parameters by
+{}:
+{}'''.format
+
+
+def MM(a, V, Km):
+    """The Michaelis-Menten rate law."""
+    return V * a / (Km + a)
+
+
 def lineweaver_burk(a, v0):
     """Compute parameters by Lineweaver-Burk linearization."""
     x, y = 1/a, 1/v0
-    m, b, Sm, Sb, _, _ = lin_regression(x, y)
-    V = 1.0 / b
-    Km = m / b
-    SV = V * Sb / b
-    SKm = Km * np.sqrt((Sm/m)**2 + (Sb/b)**2)
-    return ResDict(method='Lineweaver-Burk',
-                   V=V, Km=Km, SE_V=SV, SE_Km=SKm,
-                   x=x, y=y, m=m, b=b)
+    result = linregress(x, y)
+    V = 1.0 / result.intercept
+    Km = result.slope / result.intercept
+    cv_m = result.stderr/result.slope
+    cv_b = result.intercept_stderr/result.intercept
+    SV = V * cv_b
+    SKm = Km * np.sqrt(cv_m**2 + cv_b**2)
+    res = ResDict(method='Lineweaver-Burk',
+                  V=V, Km=Km, SE_V=SV, SE_Km=SKm,
+                  x=x, y=y, m=result.slope, b=result.intercept)
+    return res
 
 
 def hanes_woolf(a, v0):
     """Compute parameters by Hanes linearization."""
-    x = a
-    y = a/v0
-    m, b, Sm, Sb, _, _ = lin_regression(x, y)
-    V = 1.0 / m
-    Km = b / m
-    SV = V * Sm / m
-    SKm = Km * np.sqrt((Sm/m)**2 + (Sb/b)**2)
-    return ResDict(method='Hanes',
-                   V=V, Km=Km, SE_V=SV, SE_Km=SKm,
-                   x=x, y=y, m=m, b=b)
+    x, y = a, a/v0
+    result = linregress(x, y)
+    V = 1.0 / result.slope
+    Km = result.intercept / result.slope
+    cv_m = result.stderr/result.slope
+    cv_b = result.intercept_stderr/result.intercept
+    SV = V * cv_m
+    SKm = Km * np.sqrt(cv_m**2 + cv_b**2)
+    res = ResDict(method='Hanes',
+                  V=V, Km=Km, SE_V=SV, SE_Km=SKm,
+                  x=x, y=y, m=result.slope, b=result.intercept)
+    return res
 
 
 def eadie_hofstee(a, v0):
     """Compute parameters by Eadie-Hofstee linearization."""
-    x = v0/a
-    y = v0
-    m, b, Sm, Sb, _, _ = lin_regression(x, y)
-    V = b
-    Km = -m
-    SV = Sb
-    SKm = Sm
-    return ResDict(method='Eadie-Hofstee',
-                   V=V, Km=Km, SE_V=SV, SE_Km=SKm,
-                   x=x, y=y, m=m, b=b)
+    x, y = v0/a, v0
+    result = linregress(x, y)
+    V = result.intercept
+    Km = -result.slope
+    SV = result.intercept_stderr
+    SKm = result.stderr
+    res = ResDict(method='Eadie-Hofstee',
+                  V=V, Km=Km, SE_V=SV, SE_Km=SKm,
+                  x=x, y=y, m=result.slope, b=result.intercept)
+    return res
 
 
 def hyperbolic(a, v0):
     """Compute parameters by non-linear least-quares regression."""
-    popt, pcov, *_ = curve_fit(MM, a, v0, p0=(max(v0), np.median(a)))
-    errors = np.sqrt(np.diag(pcov))
-    V, Km = popt[0:2]
-    SV, SKm = errors[0:2]
-    return ResDict(method='Hyperbolic regression',
-                   V=V, Km=Km, SE_V=SV, SE_Km=SKm, x=a, y=v0)
+    try:
+        popt, pcov, *_ = curve_fit(MM, a, v0, p0=(max(v0), np.median(a)),
+                                   full_output=True,
+                                   check_finite=True)
+        errors = np.sqrt(np.diag(pcov))
+        V, Km = popt[0:2]
+        SV, SKm = errors[0:2]
+        res = ResDict(method='Hyperbolic regression',
+                      V=V, Km=Km, SE_V=SV,
+                      SE_Km=SKm, x=a, y=v0)
+    except (ValueError, RuntimeError, OptimizeWarning) as error:
+        res = ResDict(method='Hyperbolic regression',
+                      error=error_msg('Hyperbolic regression', error),
+                      V=V, Km=Km, SE_V=SV,
+                      SE_Km=SKm, x=a, y=v0)
+    return res
 
 
 def cornish_bowden(a, v0):
     """Compute parameters by the Direct Linear Plot."""
-    straights = [(v/s, v) for v, s in zip(v0, a)]
-    intersects = []
-
-    for ((m1, b1), (m2, b2)) in combinations(straights, 2):
-        xintersect = (b2 - b1) / (m1 - m2)
-        yintersect = (b1 * m2 - b2 * m1) / (m2 - m1)
-        intersects.append((xintersect, yintersect))
-    intersects = np.array(intersects)
-
-    Km, V = np.median(intersects, axis=0)
-    # TODO: compute CIs
-
-    # construct results
     try:
+        straights = [(v/s, v) for v, s in zip(v0, a)]
+        intersects = []
+
+        for ((m1, b1), (m2, b2)) in combinations(straights, 2):
+            xintersect = (b2 - b1) / (m1 - m2)
+            yintersect = (b1 * m2 - b2 * m1) / (m2 - m1)
+            intersects.append((xintersect, yintersect))
+        intersects = np.array(intersects)
+        # print('intersects--------------')
+        # print(intersects)
+
+        Km, V = np.nanmedian(intersects, axis=0)
+        # print('Km V--------------')
+        # print(Km, V)
+        # TODO: compute CIs
+
+        # construct results
         res = ResDict(method='Eisenthal-C.Bowden',
                       V=V, Km=Km, x=a, y=v0,
                       intersections=intersects,
                       dlp_lines=np.array(straights))
-    except ValueError as ve:
-        res = ResDict(method='Eisenthal-C.Bowden',
-                      error=f'Error while computing parameters by\nEisenthal-C.Bowden:\n{ve}')
+    except ValueError as error:
+        res = ResDict(method='Eisenthal-C.Bowden', x=a, y=v0,
+                      error=error_msg('Eisenthal-C.Bowden', error))
     return res
 
 
@@ -181,8 +192,16 @@ def report_str(results):
         if result.error is not None:
             lines.append(str(result.error))
         else:
-            lines.append('   V  = ' + repr_x_deltax(result.V, result.SE_V))
-            lines.append('   Km = ' + repr_x_deltax(result.Km, result.SE_Km))
+            V = result.V
+            if not np.isfinite(V) or V <= 0.0:
+                lines.append(f'   Invalid V = {V}')
+            else:
+                lines.append('   V  = ' + repr_x_deltax(V, result.SE_V))
+            Km = result.Km
+            if not np.isfinite(Km) or Km <= 0.0:
+                lines.append(f'   Invalid Km = {Km}')
+            else:
+                lines.append('   Km = ' + repr_x_deltax(Km, result.SE_Km))
     return '\n'.join(lines)
 
 
@@ -296,8 +315,10 @@ def plot_others_mpl(results=None, colorscheme=None, grid=True):
     ax = f.subplots(2, 2)
     ax = ax.flatten()
     for i in range(0, 3):
-        draw_lin_plot(ax[i], all_r[i+1], color=colorscheme[i+1], grid=grid)
-    draw_cornish_bowden_plot(ax[3], all_r[4], color=colorscheme[4], grid=grid)
+        draw_lin_plot(ax[i], all_r[i+1],
+                      color=colorscheme[i+1], grid=grid)
+    draw_cornish_bowden_plot(ax[3], all_r[4],
+                             color=colorscheme[4], grid=grid)
     f.tight_layout()
     return f
 
@@ -307,6 +328,13 @@ def draw_lin_plot(ax, result, color='black',
 
     if title is None:
         title = result.method
+    ax.set_title(title)
+
+    # if result.error is not None:
+    #     ax.set_ylim(0, 1)
+    #     ax.set_xlim(0, 1)
+    #     ax.text(0.5, 0.5, 'no figure generated', ha='center')
+    #     return
     x = result.x
     y = result.y
 
@@ -319,7 +347,6 @@ def draw_lin_plot(ax, result, color='black',
         ytop = ymax
     ytop = 1.1 * ytop
 
-    ax.set_title(title)
     ax.set_ylim(0, ytop)
     ax.set_xlim(0, xmax)
 
@@ -356,22 +383,23 @@ def draw_cornish_bowden_plot(ax, results,
                              title=None,
                              grid=True):
 
-    if results.error is not None:
-        ax.set_ylim(0, 1)
-        ax.set_xlim(0, 1)
-        ax.text(0.5, 0.5, 'no figure generated')
-        return
+    if title is None:
+        title = results.method
+    # if results.error is not None:
+    #     ax.set_ylim(0, 1)
+    #     ax.set_xlim(0, 1)
+    #     ax.text(0.5, 0.5, 'no figure generated', ha='center')
+    #     return
     a = results.x
     intersections = results.intersections
     lines = results.dlp_lines
-    if title is None:
-        title = results.method
-
 
     # keep finite intersections (might be Inf)
     finite_intersections = np.logical_and(np.isfinite(intersections[:, 0]),
                                           np.isfinite(intersections[:, 1]))
-    viz_intersections = np.compress(finite_intersections, intersections, axis=0)
+    viz_intersections = np.compress(finite_intersections,
+                                    intersections,
+                                    axis=0)
 
     # print('intersections ---------------')
     # print(intersections)
@@ -552,7 +580,8 @@ class MMResultsInterface(param.Parameterized):
 
 results_handler = MMResultsInterface()
 
-results_text = pn.pane.Str('', styles={'font-family': "monospace", 'font-size': '12pt'})
+results_text = pn.pane.Str('', styles={'font-family': "monospace",
+                                       'font-size': '12pt'})
 
 fd_png = FileDownload(callback=results_handler.get_png_hypers,
                       filename='hypers.png', width=200)
