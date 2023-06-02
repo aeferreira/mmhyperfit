@@ -385,11 +385,11 @@ def draw_cornish_bowden_plot(ax, results,
 
     if title is None:
         title = results.method
-    # if results.error is not None:
-    #     ax.set_ylim(0, 1)
-    #     ax.set_xlim(0, 1)
-    #     ax.text(0.5, 0.5, 'no figure generated', ha='center')
-    #     return
+    if results.error is not None:
+        ax.set_ylim(0, 1)
+        ax.set_xlim(0, 1)
+        ax.text(0.5, 0.5, 'no figure generated', ha='center')
+        return
     a = results.x
     intersections = results.intersections
     lines = results.dlp_lines
@@ -609,14 +609,15 @@ fit_button.on_click(b_fit)
 
 top_buttons = pn.Row(edit_table_group, clear_button)
 
-header = r"""## Michaelis-Menten equation fitting
+header = pn.pane.Markdown(r"""## Michaelis-Menten equation fitting
 
 $$v_o = \\frac{V a}{K_m + a}$$
 
 by António Ferreira
 
 ### Data input
-"""
+""",
+renderer='markdown')
 
 # panes holding matplotlib plots
 mpl_pane_hypers = pn.panel(hypers_mpl(results=None))
@@ -641,9 +642,7 @@ results_pane = pn.Column(pn.layout.Divider(), "### Parameter values",
 # start results pane hidden
 results_pane.visible = False
 
-app_column = pn.Column(pn.pane.Markdown(header, renderer='markdown'),
-                       data_input_row,
-                       results_pane)
+app_column = pn.Column(header, data_input_row, results_pane)
 
 app_column.servable(title='Michaelis-Menten fitting')
 # app_column
