@@ -8,6 +8,3 @@ Methods are:
 
 The notebook demo.ipynb can be used to produce all tables and plots. Just replace the demo data with your own.
 
-You can use the awesome binder service to get a live copy of this repo and launch demo.ipynb:
-
-[![Binder](https://beta.mybinder.org/badge.svg)](https://beta.mybinder.org/v2/gh/aeferreira/mmhyperfit/master)

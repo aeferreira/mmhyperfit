@@ -241,26 +241,27 @@ all_methods_list = ('Hyperbolic Regression',
                     'Eisenthal-C.Bowden')
 
 
-def hypers_mpl(results=None,
+def hypers_mpl(results=None, ax=None,
                display_methods=all_methods_list,
                colorscheme=None,
                title=None,
                legend=True,
                grid=True):
 
+    if ax is None:
+        return
+
+    ax.clear()
+
     if results is None:
-        fig0 = Figure(figsize=(5, 4), tight_layout=True)
-        ax0 = fig0.subplots()
-        ax0.text(0.5, 0.5, 'no figure generated')
-        return fig0
+        ax.text(0.5, 0.5, 'no figure generated')
+        return
 
     a = results['a']
     v0 = results['v0']
     all_results = results['results']
-    plt.rc('mathtext', fontset='cm')
-    f = Figure(figsize=(5, 4), tight_layout=True)
-    ax = f.subplots()
 
+    plt.rc('mathtext', fontset='cm')
     if colorscheme is None:
         colorscheme = default_color_scheme
 
@@ -296,31 +297,35 @@ def hypers_mpl(results=None,
         ax.legend(loc='lower right')
     if grid:
         ax.grid()
-    return f
 
 
-def plot_others_mpl(results=None, colorscheme=None, grid=True):
+def plot_others_mpl(results=None, f=None, colorscheme=None, grid=True):
+
+    if f is None:
+        return
+
+    f.clear()
+
     if results is None:
-        fig1 = Figure(figsize=(9, 6))
-        ax0 = fig1.subplots()
+        ax0 = f.subplots()
         ax0.text(0.5, 0.5, 'no figure generated')
-        return fig1
+        return
 
     all_r = results['results']
+
     if colorscheme is None:
         colorscheme = default_color_scheme
     plt.rc('mathtext', fontset='cm')
 
-    f = Figure(figsize=(9, 6))
     ax = f.subplots(2, 2)
     ax = ax.flatten()
+    # draw linearizations
     for i in range(0, 3):
         draw_lin_plot(ax[i], all_r[i+1],
                       color=colorscheme[i+1], grid=grid)
+    # draw direct linear plot
     draw_cornish_bowden_plot(ax[3], all_r[4],
                              color=colorscheme[4], grid=grid)
-    f.tight_layout()
-    return f
 
 
 def draw_lin_plot(ax, result, color='black',
@@ -330,11 +335,11 @@ def draw_lin_plot(ax, result, color='black',
         title = result.method
     ax.set_title(title)
 
-    # if result.error is not None:
-    #     ax.set_ylim(0, 1)
-    #     ax.set_xlim(0, 1)
-    #     ax.text(0.5, 0.5, 'no figure generated', ha='center')
-    #     return
+    if result.error is not None:
+        ax.set_ylim(0, 1)
+        ax.set_xlim(0, 1)
+        ax.text(0.5, 0.5, 'no figure generated', ha='center')
+        return
     x = result.x
     y = result.y
 
@@ -415,7 +420,7 @@ def draw_cornish_bowden_plot(ax, results,
     ax.set_ylim(0, ymax)
     ax.set_xlim(-xmin, xmax)
 
-    # plot lines
+    # plot straight lines through (-ai, 0) and (0, vi)
     for m, b in lines:
         ymaxi = m * xmax + b
         ax.plot([-b/m, xmax], [0, ymaxi],
@@ -499,8 +504,12 @@ def b_clear(event):
     data_input_text.value = data_input_text.placeholder
     edit_table_group.value = 'Edit'
     results_text.object = ''
-    mpl_pane_hypers.object = hypers_mpl(results=None)
-    mpl_pane_others.object = plot_others_mpl(results=None)
+
+    hypers_mpl(results=None, ax=results_handler.f_ax['hypers_ax'])
+    mpl_hypers.param.trigger('object')
+
+    plot_others_mpl(results=None, f=results_handler.f_ax['others_f'])
+    mpl_others.param.trigger('object')
 
 
 clear_button.on_click(b_clear)
@@ -538,8 +547,12 @@ edit_table_group.param.watch(change_data_view, 'value')
 
 # results
 
+
 class MMResultsInterface(param.Parameterized):
-    last_results = param.Dict(dict())
+    last_results = param.Dict({})
+
+    f_ax = param.Dict({})
+
     check_methods = param.ListSelector(default=list(all_methods_list),
                                        objects=list(all_methods_list))
 
@@ -548,19 +561,21 @@ class MMResultsInterface(param.Parameterized):
 
     @param.depends('check_methods', 'e', watch=True)
     def draw_main_plot(self):
-        f = hypers_mpl(self.last_results,
-                       display_methods=self.check_methods)
-        mpl_pane_hypers.object = f
+        hypers_mpl(self.last_results, ax=self.f_ax['hypers_ax'],
+                   display_methods=self.check_methods)
+        mpl_hypers.param.trigger('object')
+
 
     @param.depends('e', watch=True)
     def draw_other_plots(self):
-        f = plot_others_mpl(self.last_results)
-        mpl_pane_others.object = f
+        plot_others_mpl(self.last_results, f=self.f_ax['others_f'])
+        mpl_others.param.trigger('object')
 
     def get_png_hypers(self):
         if self.last_results is not None:
-            f = hypers_mpl(self.last_results,
-                           display_methods=self.check_methods)
+            hypers_mpl(self.last_results, ax=self.f_ax['hypers_ax'],
+                       display_methods=self.check_methods)
+            f = self.f_ax['hypers_f']
             bio = BytesIO()
             f.savefig(bio, format='png', dpi=100)
             bio.seek(0)
@@ -569,8 +584,9 @@ class MMResultsInterface(param.Parameterized):
 
     def get_pdf_hypers(self):
         if self.last_results is not None:
-            f = hypers_mpl(self.last_results,
-                           display_methods=self.check_methods)
+            hypers_mpl(self.last_results, ax=self.f_ax['hypers_ax'],
+                       display_methods=self.check_methods)
+            f = self.f_ax['hypers_f']
             bio = BytesIO()
             f.savefig(bio, format='pdf')
             bio.seek(0)
@@ -619,9 +635,24 @@ by António Ferreira
 """,
 renderer='markdown')
 
-# panes holding matplotlib plots
-mpl_pane_hypers = pn.panel(hypers_mpl(results=None))
-mpl_pane_others = pn.panel(plot_others_mpl(results=None))
+# figures holding matplotlib plots
+
+def init_figures():
+    # setup hypers figure
+    f = Figure(figsize=(5, 4), tight_layout=True)
+    ax = f.subplots()
+    results_handler.f_ax['hypers_f'] = f
+    results_handler.f_ax['hypers_ax'] = ax
+    hypers_mpl(results=None, ax=ax)
+    # setup "other plots" figure
+    f = Figure(figsize=(9, 6), tight_layout=True)
+    results_handler.f_ax['others_f'] = f
+    plot_others_mpl(results=None, f=f)
+
+
+init_figures()
+mpl_hypers = pn.pane.Matplotlib(results_handler.f_ax['hypers_f'])
+mpl_others = pn.pane.Matplotlib(results_handler.f_ax['others_f'])
 
 data_input_row = pn.Row(data_input_column,
                         pn.Column(top_buttons, demo_button, fit_button))
@@ -629,15 +660,17 @@ data_input_row = pn.Row(data_input_column,
 method_choice = CheckBoxGroup.from_param(results_handler.param.check_methods,
                                          inline=False)
 
+tabs = pn.Tabs(('MM equation plot', mpl_hypers), ('Secondary plots', mpl_others))
+box = pn.WidgetBox(tabs)
+
 results_pane = pn.Column(pn.layout.Divider(), "### Parameter values",
                          results_text,
                          '### Plots',
-                         pn.Row(mpl_pane_hypers,
-                                pn.Column(pn.Spacer(height=50),
+                         pn.Row(pn.Column(pn.Spacer(height=50),
+                                          "#### Include",
                                           method_choice,
                                           fd_png,
-                                          fd_pdf)),
-                         pn.Row(mpl_pane_others))
+                                          fd_pdf), box))
 
 # start results pane hidden
 results_pane.visible = False
