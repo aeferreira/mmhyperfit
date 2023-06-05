@@ -605,7 +605,9 @@ results_text = pn.pane.Str('', styles={'font-family': "monospace",
                                        'font-size': '12pt'})
 
 # "Fit" button
-fit_button = Button(name='Fit', width=200, button_type='primary')
+fit_button = Button(name='Fit', width=200,
+                    button_type='primary',
+                    icon='calculator', icon_size='2em')
 
 
 def b_fit(event):
