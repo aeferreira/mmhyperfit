@@ -127,8 +127,8 @@ def hyperbolic(a, v0):
     except (ValueError, RuntimeError, OptimizeWarning) as error:
         res = ResDict(method='Hyperbolic regression',
                       error=error_msg('Hyperbolic regression', error),
-                      V=V, Km=Km, SE_V=SV,
-                      SE_Km=SKm, x=a, y=v0)
+                      V=0, Km=0, SE_V=0,
+                      SE_Km=0, x=a, y=v0)
     return res
 
 
@@ -241,9 +241,7 @@ all_methods_list = ('Hyperbolic Regression',
                     'Eisenthal-C.Bowden')
 
 
-def hypers_mpl(results=None, ax=None,
-               display_methods=all_methods_list,
-               colorscheme=None,
+def hypers_mpl(results=None, ax=None, plot_settings=None,
                title=None,
                legend=True,
                grid=True):
@@ -262,8 +260,12 @@ def hypers_mpl(results=None, ax=None,
     all_results = results['results']
 
     plt.rc('mathtext', fontset='cm')
-    if colorscheme is None:
-        colorscheme = default_color_scheme
+    # defaults
+    colorscheme = default_color_scheme
+    include_methods = all_methods_list
+    # overide with plot_settings
+    if plot_settings is not None:
+        include_methods = plot_settings.include_methods
 
     xmax = max(a) * 1.1
     ymax = max(v0) * 1.1
@@ -272,7 +274,7 @@ def hypers_mpl(results=None, ax=None,
         ax.set_title(title)
     ax.set_ylim(0, ymax)
     ax.set_xlim(0, xmax)
-    chosen3letter = [choice[:3] for choice in display_methods]
+    chosen3letter = [choice[:3] for choice in include_methods]
 
     for result, color in zip(all_results, colorscheme):
         if result.method[:3] not in chosen3letter:
@@ -505,10 +507,10 @@ def b_clear(event):
     edit_table_group.value = 'Edit'
     results_text.object = ''
 
-    hypers_mpl(results=None, ax=results_handler.f_ax['hypers_ax'])
+    hypers_mpl(results=None, ax=res_interface.f_ax['hypers_ax'])
     mpl_hypers.param.trigger('object')
 
-    plot_others_mpl(results=None, f=results_handler.f_ax['others_f'])
+    plot_others_mpl(results=None, f=res_interface.f_ax['others_f'])
     mpl_others.param.trigger('object')
 
 
@@ -547,22 +549,25 @@ edit_table_group.param.watch(change_data_view, 'value')
 
 # results
 
+class PlotSettings(param.Parameterized):
+    include_methods = param.ListSelector(default=list(all_methods_list),
+                                         objects=list(all_methods_list))
+
 
 class MMResultsInterface(param.Parameterized):
     last_results = param.Dict({})
 
+    plot_settings = PlotSettings()
+
     f_ax = param.Dict({})
 
-    check_methods = param.ListSelector(default=list(all_methods_list),
-                                       objects=list(all_methods_list))
-
-    # triggers new plots resulting from a new computation
+    # triggers new plots resulting from V, Km computation
     e = param.Event()
 
-    @param.depends('check_methods', 'e', watch=True)
+    @param.depends('plot_settings.param', 'e', watch=True)
     def draw_main_plot(self):
         hypers_mpl(self.last_results, ax=self.f_ax['hypers_ax'],
-                   display_methods=self.check_methods)
+                   plot_settings=self.plot_settings)
         mpl_hypers.param.trigger('object')
 
 
@@ -574,7 +579,7 @@ class MMResultsInterface(param.Parameterized):
     def get_png_hypers(self):
         if self.last_results is not None:
             hypers_mpl(self.last_results, ax=self.f_ax['hypers_ax'],
-                       display_methods=self.check_methods)
+                       plot_settings=self.plot_settings)
             f = self.f_ax['hypers_f']
             bio = BytesIO()
             f.savefig(bio, format='png', dpi=100)
@@ -585,7 +590,7 @@ class MMResultsInterface(param.Parameterized):
     def get_pdf_hypers(self):
         if self.last_results is not None:
             hypers_mpl(self.last_results, ax=self.f_ax['hypers_ax'],
-                       display_methods=self.check_methods)
+                       plot_settings=self.plot_settings)
             f = self.f_ax['hypers_f']
             bio = BytesIO()
             f.savefig(bio, format='pdf')
@@ -594,15 +599,10 @@ class MMResultsInterface(param.Parameterized):
         return None
 
 
-results_handler = MMResultsInterface()
+res_interface = MMResultsInterface()
 
 results_text = pn.pane.Str('', styles={'font-family': "monospace",
                                        'font-size': '12pt'})
-
-fd_png = FileDownload(callback=results_handler.get_png_hypers,
-                      filename='hypers.png', width=200)
-fd_pdf = FileDownload(callback=results_handler.get_pdf_hypers,
-                      filename='hypers.pdf', width=200)
 
 # "Fit" button
 fit_button = Button(name='Fit', width=200, button_type='primary')
@@ -614,11 +614,11 @@ def b_fit(event):
 
     # compute results
     s, v0 = read_data(data_input_text.value)
-    results_handler.last_results = compute_methods(s, v0)
+    res_interface.last_results = compute_methods(s, v0)
 
-    # fill results text are and trigger the drawing of new plots
-    results_text.object = report_str(results_handler.last_results['results'])
-    results_handler.e = True
+    # fill results text and trigger the drawing of new plots
+    results_text.object = report_str(res_interface.last_results['results'])
+    res_interface.e = True
 
 
 fit_button.on_click(b_fit)
@@ -641,36 +641,42 @@ def init_figures():
     # setup hypers figure
     f = Figure(figsize=(5, 4), tight_layout=True)
     ax = f.subplots()
-    results_handler.f_ax['hypers_f'] = f
-    results_handler.f_ax['hypers_ax'] = ax
+    res_interface.f_ax['hypers_f'] = f
+    res_interface.f_ax['hypers_ax'] = ax
     hypers_mpl(results=None, ax=ax)
+
     # setup "other plots" figure
     f = Figure(figsize=(9, 6), tight_layout=True)
-    results_handler.f_ax['others_f'] = f
+    res_interface.f_ax['others_f'] = f
     plot_others_mpl(results=None, f=f)
 
 
 init_figures()
-mpl_hypers = pn.pane.Matplotlib(results_handler.f_ax['hypers_f'])
-mpl_others = pn.pane.Matplotlib(results_handler.f_ax['others_f'])
+mpl_hypers = pn.pane.Matplotlib(res_interface.f_ax['hypers_f'])
+mpl_others = pn.pane.Matplotlib(res_interface.f_ax['others_f'])
 
 data_input_row = pn.Row(data_input_column,
                         pn.Column(top_buttons, demo_button, fit_button))
 
-method_choice = CheckBoxGroup.from_param(results_handler.param.check_methods,
+# plot settings
+method_choice = CheckBoxGroup.from_param(res_interface.plot_settings.param.include_methods,
                                          inline=False)
 
+download_png = FileDownload(callback=res_interface.get_png_hypers,
+                            filename='hypers.png', width=200)
+download_pdf = FileDownload(callback=res_interface.get_pdf_hypers,
+                            filename='hypers.pdf', width=200)
+
+plot_settings = pn.Column("#### Include", method_choice, download_png, download_pdf)
+
+# plots
 tabs = pn.Tabs(('MM equation plot', mpl_hypers), ('Secondary plots', mpl_others))
-box = pn.WidgetBox(tabs)
+plots_box = pn.WidgetBox(tabs)
 
 results_pane = pn.Column(pn.layout.Divider(), "### Parameter values",
                          results_text,
-                         '### Plots',
-                         pn.Row(pn.Column(pn.Spacer(height=50),
-                                          "#### Include",
-                                          method_choice,
-                                          fd_png,
-                                          fd_pdf), box))
+                         pn.Spacer(height=50),
+                         pn.Row(plot_settings, plots_box))
 
 # start results pane hidden
 results_pane.visible = False
