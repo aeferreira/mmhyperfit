@@ -14,8 +14,7 @@ from bokeh.models.widgets.tables import NumberFormatter, BooleanFormatter
 import param
 
 import panel as pn
-from panel.widgets import (Button, CheckBoxGroup,
-                           RadioButtonGroup, FileDownload)
+from panel.widgets import (Button, CheckBoxGroup, FileDownload)
 pn.extension('tabulator', 'mathjax')
 pn.extension('notifications')
 pn.extension(notifications=True)
@@ -231,9 +230,6 @@ default_color_scheme = ('darkviolet',
                         'tab:blue',
                         'tab:orange')
 
-
-empty_df = pd.DataFrame({'substrate': [0.1, 0.2, 0.3], 'rate': [0.1, 0.2, 0.3], 'use': [True, True, True]})
-empty_df.index.name = '#'
 
 all_methods_list = ('Hyperbolic Regression',
                     'Lineweaver-Burk',
@@ -484,6 +480,12 @@ def read_data_df(data_text):
 
 # widgetry
 
+
+empty_df = pd.DataFrame({'substrate': [0.1],
+                         'rate': [0.1],
+                         'use': [True]})
+empty_df.index.name = '#'
+
 # data input
 data_input_text = pn.widgets.input.TextAreaInput(width=200,
                                                  sizing_mode='stretch_height',
@@ -494,13 +496,18 @@ bokeh_formatters = {
     'substrate': NumberFormatter(format='0.00000'),
     'use': BooleanFormatter()
 }
-data_dfwidget = pn.widgets.Tabulator(empty_df, width=250, show_index=False,
-                                     selectable=False,
+
+data_dfwidget = pn.widgets.Tabulator(empty_df, width=300, show_index=False,
+                                     selectable='checkbox',
+                                     widths={'substrate': 100,
+                                             'rate': 100},
+                                     text_align={'use': 'center'},
                                      formatters=bokeh_formatters)
 
 # data input buttons
 
 add_row_button = Button(name='+', width=20)
+
 
 def add_row(event):
     df = data_dfwidget.value
@@ -508,26 +515,19 @@ def add_row(event):
     newdf = df.append(new_row, ignore_index=True)
     data_dfwidget.value = newdf
 
+
 add_row_button.on_click(add_row)
 
-remove_unused_button = Button(name='Remove unused', button_type='danger')
+# reset button
+clear_button = Button(name='Reset', button_type='danger', width=150)
 
-def remove_unused(event):
-    df = data_dfwidget.value
-    newdf = df[df.use]
-    data_dfwidget.value = newdf
-
-remove_unused_button.on_click(remove_unused)
-
-
-clear_button = Button(name='Clear', button_type='danger', width=80)
 
 def b_clear(event):
     results_pane.visible = False
     data_input_text.value = data_input_text.placeholder
     data_dfwidget.value = empty_df
     edit_button.value = False
-    #edit_table_group.value = 'Edit'
+    # edit_table_group.value = 'Edit'
     results_text.object = ''
 
     hypers_mpl(results=None, ax=res_interface.f_ax['hypers_ax'])
@@ -539,20 +539,44 @@ def b_clear(event):
 
 clear_button.on_click(b_clear)
 
-edit_button = pn.widgets.Toggle(name='Edit', button_type='success')
-edit_button.value = False
+# Edit menu
 
-edit_table_group = RadioButtonGroup(options=['Edit', 'Check'], width=100)
-edit_table_group.value = 'Edit'
+menu_items = [('Copy', 'copy'),
+              ('Paste', 'paste'),
+              ('Cut', 'cut'),
+              ('Invert selection', 'invert_selection'),
+              None,
+              ('Toggle "use"', 'toggle_use'),
+              None,
+              ('Delete unused', 'del_unused'),
+              ('Delete selected', 'del_unused'),
+              ('Clear all data', 'del_all')]
 
-demo_button = Button(name='Demo data', width=200)
+edit_button = pn.widgets.MenuButton(name='Edit', width=120,
+                                    items=menu_items,
+                                    button_type='success')
+
+
+def handle_edit(event):
+    choice = event.new
+    if choice == 'del_all':
+        data_dfwidget.value = empty_df
+    elif choice == 'del_unused':
+        df = data_dfwidget.value
+        data_dfwidget.value = df[df.use]
+
+
+edit_button.on_click(handle_edit)
+
+# demo data
+demo_button = Button(name='Demo')
 
 
 def b_demo(event):
-    #data_input_text.value = DEMO_DATA
+    # data_input_text.value = DEMO_DATA
     a, v0 = read_data(DEMO_DATA)
     demo_df = pd.DataFrame({'substrate': a, 'rate': v0, 'use': [True]*len(a)})
-    #edit_table_group.value = 'Edit'
+    # edit_table_group.value = 'Edit'
     data_dfwidget.value = demo_df
 
 
@@ -571,9 +595,6 @@ def change_data_view(event):
         pn.state.notifications.info('Data OK', duration=3000)
     else:
         data_input_column[0] = data_input_text
-
-
-edit_table_group.param.watch(change_data_view, 'value')
 
 
 # results
@@ -598,7 +619,6 @@ class MMResultsInterface(param.Parameterized):
         hypers_mpl(self.last_results, ax=self.f_ax['hypers_ax'],
                    plot_settings=self.plot_settings)
         mpl_hypers.param.trigger('object')
-
 
     @param.depends('e', watch=True)
     def draw_other_plots(self):
@@ -634,7 +654,7 @@ results_text = pn.pane.Str('', styles={'font-family': "monospace",
                                        'font-size': '12pt'})
 
 # "Fit" button
-fit_button = Button(name='Fit', width=200,
+fit_button = Button(name='Fit', width=150,
                     button_type='primary',
                     icon='calculator', icon_size='2em')
 
@@ -644,8 +664,13 @@ def b_fit(event):
     results_pane.visible = True
 
     # compute results
-    s, v0 = read_data(data_input_text.value)
-    res_interface.last_results = compute_methods(s, v0)
+    # s, v0 = read_data(data_input_text.value)
+    df = data_dfwidget.value
+    df = df[df.use]
+    # TODO: validate
+    subs_conc = df['substrate'].values
+    v0_values = df['rate'].values
+    res_interface.last_results = compute_methods(subs_conc, v0_values)
 
     # fill results text and trigger the drawing of new plots
     results_text.object = report_str(res_interface.last_results['results'])
@@ -654,10 +679,12 @@ def b_fit(event):
 
 fit_button.on_click(b_fit)
 
-top_buttons = pn.Row(edit_button, add_row_button, remove_unused_button, clear_button)
+edit_buttons = pn.Row(add_row_button,
+                      demo_button,
+                      edit_button)
 
-data_input_column = pn.Column(top_buttons, data_dfwidget, height=250)
-#data_input_column = pn.Column(data_input_text, height=200)
+data_input_column = pn.Column(edit_buttons, data_dfwidget, height=250)
+# data_input_column = pn.Column(data_input_text, height=200)
 
 header = pn.pane.Markdown(r"""## Michaelis-Menten equation fitting
 
@@ -666,10 +693,10 @@ $$v_o = \\frac{V a}{K_m + a}$$
 by António Ferreira
 
 ### Data input
-""",
-renderer='markdown')
+""", renderer='markdown')
 
 # figures holding matplotlib plots
+
 
 def init_figures():
     # setup hypers figure
@@ -689,11 +716,13 @@ init_figures()
 mpl_hypers = pn.pane.Matplotlib(res_interface.f_ax['hypers_f'])
 mpl_others = pn.pane.Matplotlib(res_interface.f_ax['others_f'])
 
-data_input_row = pn.Row(data_input_column,
-                        pn.Column(demo_button, fit_button))
+data_input_row = pn.Row(pn.WidgetBox(data_input_column, height=320),
+                        pn.Column(fit_button, clear_button))
 
 # plot settings
-method_choice = CheckBoxGroup.from_param(res_interface.plot_settings.param.include_methods,
+method_choice = CheckBoxGroup.from_param(res_interface.
+                                         plot_settings.param.
+                                         include_methods,
                                          inline=False)
 
 download_png = FileDownload(callback=res_interface.get_png_hypers,
@@ -701,10 +730,14 @@ download_png = FileDownload(callback=res_interface.get_png_hypers,
 download_pdf = FileDownload(callback=res_interface.get_pdf_hypers,
                             filename='hypers.pdf', width=200)
 
-plot_settings = pn.Column("#### Include", method_choice, download_png, download_pdf)
+plot_settings = pn.Column("#### Include",
+                          method_choice,
+                          download_png,
+                          download_pdf)
 
 # plots
-tabs = pn.Tabs(('MM equation plot', mpl_hypers), ('Secondary plots', mpl_others))
+tabs = pn.Tabs(('MM equation plot', mpl_hypers),
+               ('Secondary plots', mpl_others))
 plots_box = pn.WidgetBox(tabs)
 
 results_pane = pn.Column(pn.layout.Divider(), "### Parameter values",
