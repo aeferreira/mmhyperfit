@@ -9,7 +9,7 @@ from scipy.optimize import (curve_fit, OptimizeWarning)
 from scipy.stats import linregress
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
-from bokeh.models.widgets.tables import NumberFormatter
+from bokeh.models.widgets.tables import NumberFormatter, BooleanFormatter
 
 import param
 
@@ -231,7 +231,8 @@ default_color_scheme = ('darkviolet',
                         'tab:blue',
                         'tab:orange')
 
-empty_df = pd.DataFrame({'substrate': [0], 'rate': [0]})
+
+empty_df = pd.DataFrame({'substrate': [0.1, 0.2, 0.3], 'rate': [0.1, 0.2, 0.3], 'use': [True, True, True]})
 empty_df.index.name = '#'
 
 all_methods_list = ('Hyperbolic Regression',
@@ -491,20 +492,42 @@ data_input_text = pn.widgets.input.TextAreaInput(width=200,
 bokeh_formatters = {
     'rate': NumberFormatter(format='0.00000'),
     'substrate': NumberFormatter(format='0.00000'),
+    'use': BooleanFormatter()
 }
-data_dfwidget = pn.widgets.Tabulator(empty_df, width=200, disabled=True,
+data_dfwidget = pn.widgets.Tabulator(empty_df, width=250, show_index=False,
+                                     selectable=False,
                                      formatters=bokeh_formatters)
 
-data_input_column = pn.Column(data_input_text, height=200)
-
 # data input buttons
-clear_button = Button(name='Clear', button_type='danger', width=80)
 
+add_row_button = Button(name='+', width=20)
+
+def add_row(event):
+    df = data_dfwidget.value
+    new_row = pd.DataFrame({'substrate': [0.1], 'rate': [0.1], 'use': [True]})
+    newdf = df.append(new_row, ignore_index=True)
+    data_dfwidget.value = newdf
+
+add_row_button.on_click(add_row)
+
+remove_unused_button = Button(name='Remove unused', button_type='danger')
+
+def remove_unused(event):
+    df = data_dfwidget.value
+    newdf = df[df.use]
+    data_dfwidget.value = newdf
+
+remove_unused_button.on_click(remove_unused)
+
+
+clear_button = Button(name='Clear', button_type='danger', width=80)
 
 def b_clear(event):
     results_pane.visible = False
     data_input_text.value = data_input_text.placeholder
-    edit_table_group.value = 'Edit'
+    data_dfwidget.value = empty_df
+    edit_button.value = False
+    #edit_table_group.value = 'Edit'
     results_text.object = ''
 
     hypers_mpl(results=None, ax=res_interface.f_ax['hypers_ax'])
@@ -516,6 +539,9 @@ def b_clear(event):
 
 clear_button.on_click(b_clear)
 
+edit_button = pn.widgets.Toggle(name='Edit', button_type='success')
+edit_button.value = False
+
 edit_table_group = RadioButtonGroup(options=['Edit', 'Check'], width=100)
 edit_table_group.value = 'Edit'
 
@@ -523,8 +549,11 @@ demo_button = Button(name='Demo data', width=200)
 
 
 def b_demo(event):
-    data_input_text.value = DEMO_DATA
-    edit_table_group.value = 'Edit'
+    #data_input_text.value = DEMO_DATA
+    a, v0 = read_data(DEMO_DATA)
+    demo_df = pd.DataFrame({'substrate': a, 'rate': v0, 'use': [True]*len(a)})
+    #edit_table_group.value = 'Edit'
+    data_dfwidget.value = demo_df
 
 
 demo_button.on_click(b_demo)
@@ -625,7 +654,10 @@ def b_fit(event):
 
 fit_button.on_click(b_fit)
 
-top_buttons = pn.Row(edit_table_group, clear_button)
+top_buttons = pn.Row(edit_button, add_row_button, remove_unused_button, clear_button)
+
+data_input_column = pn.Column(top_buttons, data_dfwidget, height=250)
+#data_input_column = pn.Column(data_input_text, height=200)
 
 header = pn.pane.Markdown(r"""## Michaelis-Menten equation fitting
 
@@ -658,7 +690,7 @@ mpl_hypers = pn.pane.Matplotlib(res_interface.f_ax['hypers_f'])
 mpl_others = pn.pane.Matplotlib(res_interface.f_ax['others_f'])
 
 data_input_row = pn.Row(data_input_column,
-                        pn.Column(top_buttons, demo_button, fit_button))
+                        pn.Column(demo_button, fit_button))
 
 # plot settings
 method_choice = CheckBoxGroup.from_param(res_interface.plot_settings.param.include_methods,
