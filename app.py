@@ -9,7 +9,7 @@ from scipy.optimize import (curve_fit, OptimizeWarning)
 from scipy.stats import linregress
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
-from bokeh.models.widgets.tables import NumberFormatter, BooleanFormatter
+import pandas.io.clipboard as clipboard
 
 import param
 
@@ -491,18 +491,22 @@ data_input_text = pn.widgets.input.TextAreaInput(width=200,
                                                  sizing_mode='stretch_height',
                                                  min_height=200)
 
-bokeh_formatters = {
-    'rate': NumberFormatter(format='0.00000'),
-    'substrate': NumberFormatter(format='0.00000'),
-    'use': BooleanFormatter()
+formatters = {
+    'use': {'type': 'tickCross'},
 }
 
-data_dfwidget = pn.widgets.Tabulator(empty_df, width=300, show_index=False,
+editors = {'use': 'tickCross',
+           'substrate': {'type': 'number', 'max': 1000, 'step': 0.01, 'verticalNavigation':'table'},
+           'rate': {'type': 'number', 'max': 1000, 'step': 0.01, 'verticalNavigation':'table'}}
+
+data_dfwidget = pn.widgets.Tabulator(empty_df, width=310, show_index=False,
                                      selectable='checkbox',
-                                     widths={'substrate': 100,
-                                             'rate': 100},
-                                     text_align={'use': 'center'},
-                                     formatters=bokeh_formatters)
+                                     widths={'substrate': 100, 'rate': 100},
+                                     text_align={'substrate': 'left',
+                                                 'rate': 'left',
+                                                 'use': 'center'},
+                                     formatters=formatters,
+                                     editors=editors)
 
 # data input buttons
 
@@ -510,9 +514,8 @@ add_row_button = Button(name='+', width=20)
 
 
 def add_row(event):
-    df = data_dfwidget.value
     new_row = pd.DataFrame({'substrate': [0.1], 'rate': [0.1], 'use': [True]})
-    newdf = df.append(new_row, ignore_index=True)
+    newdf = pd.concat([data_dfwidget.value, new_row], ignore_index=True)
     data_dfwidget.value = newdf
 
 
