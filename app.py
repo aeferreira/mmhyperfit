@@ -1,6 +1,6 @@
 """Methods to compute Michaelis-Menten equation parameters and statistics."""
 
-from io import StringIO, BytesIO
+from io import BytesIO
 from itertools import combinations
 
 import numpy as np
@@ -207,22 +207,6 @@ def report_str(results):
 # ------------ plots --------------------------
 
 # constants
-
-# demo data
-# this is data from
-# [Atkinson, M.R., Jackson, J.F., Morton, R.K.(1961) Biochem. J. 80(2):318-23]
-# (https://doi.org/10.1042/bj0800318),
-# used for method comparison by
-# [Wilkinson, G.N. (1961) Biochem. J. 80(2):324–332]
-# (https://doi.org/10.1042/bj0800324)
-
-DEMO_DATA = """0.138 0.148
-0.220 0.171
-0.291 0.234
-0.560 0.324
-0.766 0.390
-1.460 0.493
-"""
 
 default_color_scheme = ('darkviolet',
                         'tab:green',
@@ -467,15 +451,9 @@ def read_data(data):
             continue
         a.append(x1)
         v0.append(x2)
-    return np.array(a), np.array(v0)
-
-
-def read_data_df(data_text):
-    tf = StringIO(data_text)
-    df = pd.read_csv(tf, delim_whitespace=True, comment='#', index_col=False)
-    a = df.iloc[:, 0].values()
-    v0 = df.iloc[:, 1].values()
-    return a, v0
+    return pd.DataFrame({'substrate': a,
+                         'rate': v0,
+                         'use': [True]*len(a)})
 
 
 # widgetry
@@ -491,22 +469,22 @@ data_input_text = pn.widgets.input.TextAreaInput(width=200,
                                                  sizing_mode='stretch_height',
                                                  min_height=200)
 
-formatters = {
-    'use': {'type': 'tickCross'},
-}
+formatters = {'use': {'type': 'tickCross'}, }
 
 editors = {'use': 'tickCross',
-           'substrate': {'type': 'number', 'max': 1000, 'step': 0.01, 'verticalNavigation':'table'},
-           'rate': {'type': 'number', 'max': 1000, 'step': 0.01, 'verticalNavigation':'table'}}
+           'substrate': {'type': 'number', 'max': 1000, 'step': 0.01,
+                         'verticalNavigation': 'table'},
+           'rate': {'type': 'number', 'max': 1000, 'step': 0.01,
+                    'verticalNavigation': 'table'}}
 
-data_dfwidget = pn.widgets.Tabulator(empty_df, width=310, show_index=False,
-                                     selectable='checkbox',
-                                     widths={'substrate': 100, 'rate': 100},
-                                     text_align={'substrate': 'left',
-                                                 'rate': 'left',
-                                                 'use': 'center'},
-                                     formatters=formatters,
-                                     editors=editors)
+data_input = pn.widgets.Tabulator(empty_df, width=310, show_index=False,
+                                  selectable='checkbox',
+                                  widths={'substrate': 100, 'rate': 100},
+                                  text_align={'substrate': 'left',
+                                              'rate': 'left',
+                                              'use': 'center'},
+                                  formatters=formatters,
+                                  editors=editors)
 
 # data input buttons
 
@@ -515,8 +493,8 @@ add_row_button = Button(name='+', width=20)
 
 def add_row(event):
     new_row = pd.DataFrame({'substrate': [0.1], 'rate': [0.1], 'use': [True]})
-    newdf = pd.concat([data_dfwidget.value, new_row], ignore_index=True)
-    data_dfwidget.value = newdf
+    newdf = pd.concat([data_input.value, new_row], ignore_index=True)
+    data_input.value = newdf
 
 
 add_row_button.on_click(add_row)
@@ -528,7 +506,7 @@ clear_button = Button(name='Reset', button_type='danger', width=150)
 def b_clear(event):
     results_pane.visible = False
     data_input_text.value = data_input_text.placeholder
-    data_dfwidget.value = empty_df
+    data_input.value = empty_df
     edit_button.value = False
     # edit_table_group.value = 'Edit'
     results_text.object = ''
@@ -555,49 +533,64 @@ menu_items = [('Copy', 'copy'),
               ('Delete selected', 'del_unused'),
               ('Clear all data', 'del_all')]
 
-edit_button = pn.widgets.MenuButton(name='Edit', width=120,
-                                    items=menu_items,
-                                    button_type='success')
+
+# handling the edit menu
 
 
 def handle_edit(event):
     choice = event.new
     if choice == 'del_all':
-        data_dfwidget.value = empty_df
+        data_input.value = empty_df
     elif choice == 'del_unused':
-        df = data_dfwidget.value
-        data_dfwidget.value = df[df.use]
+        df = data_input.value
+        data_input.value = df[df.use]
+    elif choice == 'paste':
+        pass
 
 
+edit_button = pn.widgets.MenuButton(name='Edit', width=120,
+                                    items=menu_items,
+                                    button_type='success')
 edit_button.on_click(handle_edit)
 
 # demo data
-demo_button = Button(name='Demo')
+
+# this is data from
+# [Atkinson, M.R., Jackson, J.F., Morton, R.K.(1961) Biochem. J. 80(2):318-23]
+# (https://doi.org/10.1042/bj0800318),
+# used for method comparison by
+# [Wilkinson, G.N. (1961) Biochem. J. 80(2):324–332]
+# (https://doi.org/10.1042/bj0800324)
+
+DEMO_DATA = """0.138 0.148
+0.220 0.171
+0.291 0.234
+0.560 0.324
+0.766 0.390
+1.460 0.493
+"""
 
 
 def b_demo(event):
-    # data_input_text.value = DEMO_DATA
-    a, v0 = read_data(DEMO_DATA)
-    demo_df = pd.DataFrame({'substrate': a, 'rate': v0, 'use': [True]*len(a)})
-    # edit_table_group.value = 'Edit'
-    data_dfwidget.value = demo_df
+    data_input.value = read_data(DEMO_DATA)
 
 
+demo_button = Button(name='Demo')
 demo_button.on_click(b_demo)
 
 
-def change_data_view(event):
-    if event.new == 'Check':
-        a, v0 = read_data(data_input_text.value)
-        df = pd.DataFrame({'rate': v0}, index=a)
-        df.index.name = 'substrate'
+# def change_data_view(event):
+#     if event.new == 'Check':
+#         a, v0 = read_data(data_input_text.value)
+#         df = pd.DataFrame({'rate': v0}, index=a)
+#         df.index.name = 'substrate'
 
-        data_dfwidget.value = df
-        data_input_column[0] = data_dfwidget
-        pn.state.notifications.position = 'top-left'
-        pn.state.notifications.info('Data OK', duration=3000)
-    else:
-        data_input_column[0] = data_input_text
+#         data_input.value = df
+#         data_input_column[0] = data_input
+#         pn.state.notifications.position = 'top-left'
+#         pn.state.notifications.info('Data OK', duration=3000)
+#     else:
+#         data_input_column[0] = data_input_text
 
 
 # results
@@ -667,8 +660,7 @@ def b_fit(event):
     results_pane.visible = True
 
     # compute results
-    # s, v0 = read_data(data_input_text.value)
-    df = data_dfwidget.value
+    df = data_input.value
     df = df[df.use]
     # TODO: validate
     subs_conc = df['substrate'].values
@@ -686,7 +678,7 @@ edit_buttons = pn.Row(add_row_button,
                       demo_button,
                       edit_button)
 
-data_input_column = pn.Column(edit_buttons, data_dfwidget, height=250)
+data_input_column = pn.Column(edit_buttons, data_input, height=250)
 # data_input_column = pn.Column(data_input_text, height=200)
 
 header = pn.pane.Markdown(r"""## Michaelis-Menten equation fitting
