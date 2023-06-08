@@ -464,10 +464,7 @@ empty_df = pd.DataFrame({'substrate': [0.1],
                          'use': [True]})
 empty_df.index.name = '#'
 
-# data input
-data_input_text = pn.widgets.input.TextAreaInput(width=200,
-                                                 sizing_mode='stretch_height',
-                                                 min_height=200)
+# data input widget (a Tabulator widget)
 
 formatters = {'use': {'type': 'tickCross'}, }
 
@@ -486,6 +483,10 @@ data_input = pn.widgets.Tabulator(empty_df, width=310, show_index=False,
                                   formatters=formatters,
                                   editors=editors)
 
+data_input_text = pn.widgets.input.TextAreaInput(width=200,
+                                                 sizing_mode='stretch_height',
+                                                 min_height=200)
+
 # data input buttons
 
 add_row_button = Button(name='+', width=20)
@@ -499,59 +500,85 @@ def add_row(event):
 
 add_row_button.on_click(add_row)
 
-# reset button
-clear_button = Button(name='Reset', button_type='danger', width=150)
-
-
-def b_clear(event):
-    results_pane.visible = False
-    data_input_text.value = data_input_text.placeholder
-    data_input.value = empty_df
-    edit_button.value = False
-    # edit_table_group.value = 'Edit'
-    results_text.object = ''
-
-    hypers_mpl(results=None, ax=res_interface.f_ax['hypers_ax'])
-    mpl_hypers.param.trigger('object')
-
-    plot_others_mpl(results=None, f=res_interface.f_ax['others_f'])
-    mpl_others.param.trigger('object')
-
-
-clear_button.on_click(b_clear)
-
 # Edit menu
 
 menu_items = [('Copy', 'copy'),
               ('Paste', 'paste'),
-              ('Cut', 'cut'),
-              ('Invert selection', 'invert_selection'),
               None,
+              ('Invert selection', 'invert_selection'),
+              ('Select not "used"', 'select_not_used'),
               ('Toggle "use"', 'toggle_use'),
               None,
-              ('Delete unused', 'del_unused'),
-              ('Delete selected', 'del_unused'),
+              ('Delete selected', 'del_selected'),
               ('Clear all data', 'del_all')]
 
 
 # handling the edit menu
 
-
 def handle_edit(event):
     choice = event.new
+    df = data_input.value
+    selection = data_input.selection
+    not_selected = pd.Series([True]*len(df))
+    not_selected[selection] = False
     if choice == 'del_all':
         data_input.value = empty_df
-    elif choice == 'del_unused':
-        df = data_input.value
-        data_input.value = df[df.use]
+    elif choice == 'copy':
+        if len(selection) == 0:
+            df_to_copy = df
+        else:
+            df_to_copy = data_input.selected_dataframe
+        copy_txt = df_to_copy.to_csv(index=False, sep='\t',
+                                     columns=['substrate', 'rate'])
+        clipboard.copy(copy_txt)
+    elif choice == 'paste':
+        paste_txt = clipboard.paste()
+        pasted_df = read_data(paste_txt)
+        if len(df) <= 1:
+            data_input.value = pasted_df
+        else:
+            newdf = pd.concat([df, pasted_df], ignore_index=True)
+            data_input.value = newdf
+    elif choice == 'toggle_use':
+        if len(selection) == 0:
+            not_selected = ~not_selected
+        new_use = df.use.where(not_selected, ~df.use)
+        data_input.value = df.assign(use=new_use)
+    elif choice == 'invert_selection':
+        inverted = [i for i in range(len(df)) if i not in selection]
+        data_input.selection = inverted
+    elif choice == 'select_not_used':
+        not_used = [i for (i, used) in enumerate(df.use) if not used]
+        data_input.selection = not_used
+    elif choice == 'del_selected':
+        data_input.value = df[not_selected]
     elif choice == 'paste':
         pass
+    else:
+        pass  # do nothing
 
 
 edit_button = pn.widgets.MenuButton(name='Edit', width=120,
                                     items=menu_items,
                                     button_type='success')
 edit_button.on_click(handle_edit)
+
+
+# paste button
+
+def b_paste(event):
+    df = data_input.value
+    paste_txt = clipboard.paste()
+    pasted_df = read_data(paste_txt)
+    if len(df) <= 1:
+        data_input.value = pasted_df
+    else:
+        newdf = pd.concat([df, pasted_df], ignore_index=True)
+        data_input.value = newdf
+
+
+paste_button = Button(name='Paste')
+paste_button.on_click(b_paste)
 
 # demo data
 
@@ -649,12 +676,28 @@ res_interface = MMResultsInterface()
 results_text = pn.pane.Str('', styles={'font-family': "monospace",
                                        'font-size': '12pt'})
 
+
+# reset button
+def b_reset(event):
+    results_pane.visible = False
+    data_input.value = empty_df
+    edit_button.value = False
+    # edit_table_group.value = 'Edit'
+    results_text.object = ''
+    # data_input_text.value = data_input_text.placeholder
+
+    hypers_mpl(results=None, ax=res_interface.f_ax['hypers_ax'])
+    mpl_hypers.param.trigger('object')
+
+    plot_others_mpl(results=None, f=res_interface.f_ax['others_f'])
+    mpl_others.param.trigger('object')
+
+
+clear_button = Button(name='Reset', button_type='danger', width=150)
+clear_button.on_click(b_reset)
+
+
 # "Fit" button
-fit_button = Button(name='Fit', width=150,
-                    button_type='primary',
-                    icon='calculator', icon_size='2em')
-
-
 def b_fit(event):
     # make results_pane visible and draw
     results_pane.visible = True
@@ -672,9 +715,13 @@ def b_fit(event):
     res_interface.e = True
 
 
+fit_button = Button(name='Fit', width=150,
+                    button_type='primary',
+                    icon='calculator', icon_size='2em')
 fit_button.on_click(b_fit)
 
 edit_buttons = pn.Row(add_row_button,
+                      paste_button,
                       demo_button,
                       edit_button)
 
