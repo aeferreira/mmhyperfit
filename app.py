@@ -483,9 +483,9 @@ data_input = pn.widgets.Tabulator(empty_df, width=310, show_index=False,
                                   formatters=formatters,
                                   editors=editors)
 
-data_input_text = pn.widgets.input.TextAreaInput(width=200,
+data_input_text = pn.widgets.input.TextAreaInput(width=310,
                                                  sizing_mode='stretch_height',
-                                                 min_height=200)
+                                                 min_height=220)
 
 # data input buttons
 
@@ -502,10 +502,7 @@ add_row_button.on_click(add_row)
 
 # Edit menu
 
-menu_items = [('Copy', 'copy'),
-              ('Paste', 'paste'),
-              None,
-              ('Invert selection', 'invert_selection'),
+menu_items = [('Invert selection', 'invert_selection'),
               ('Select not "used"', 'select_not_used'),
               ('Toggle "use"', 'toggle_use'),
               None,
@@ -579,6 +576,12 @@ def b_paste(event):
 
 paste_button = Button(name='Paste')
 paste_button.on_click(b_paste)
+
+
+# txt vs DataFrame view
+
+edit_table_group = pn.widgets.RadioButtonGroup(options=['table', 'text'], width=100)
+edit_table_group.value = 'table'
 
 # demo data
 
@@ -720,13 +723,30 @@ fit_button = Button(name='Fit', width=150,
                     icon='calculator', icon_size='2em')
 fit_button.on_click(b_fit)
 
-edit_buttons = pn.Row(add_row_button,
-                      paste_button,
+edit_buttons = pn.Row(edit_table_group,
+                    #   paste_button,
                       demo_button,
-                      edit_button)
+                      edit_button,
+                      add_row_button)
 
 data_input_column = pn.Column(edit_buttons, data_input, height=250)
 # data_input_column = pn.Column(data_input_text, height=200)
+
+
+def change_data_view(event):
+    if event.new == 'text':
+        df = data_input.value
+        as_txt = df.to_csv(index=False, sep='\t',
+                           columns=['substrate', 'rate'])
+        data_input_text.value = as_txt
+        data_input_column[1] = data_input_text
+    else:
+        df = read_data(data_input_text.value)
+        data_input.value = df
+        data_input_column[1] = data_input
+
+
+edit_table_group.param.watch(change_data_view, 'value')
 
 header = pn.pane.Markdown(r"""## Michaelis-Menten equation fitting
 
