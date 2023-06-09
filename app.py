@@ -9,7 +9,6 @@ from scipy.optimize import (curve_fit, OptimizeWarning)
 from scipy.stats import linregress
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
-import pandas.io.clipboard as clipboard
 
 import param
 
@@ -451,9 +450,13 @@ def read_data(data):
             continue
         a.append(x1)
         v0.append(x2)
-    return pd.DataFrame({'substrate': a,
-                         'rate': v0,
-                         'use': [True]*len(a)})
+    if len(a) == 0:
+        result = empty_df
+    else:
+        result = pd.DataFrame({'substrate': a,
+                               'rate': v0,
+                               'use': [True]*len(a)})
+    return result
 
 
 # widgetry
@@ -489,7 +492,7 @@ data_input_text = pn.widgets.input.TextAreaInput(width=310,
 
 # data input buttons
 
-add_row_button = Button(name='+', width=20)
+add_row_button = Button(name='+', width=20, align=('end', 'center'))
 
 
 def add_row(event):
@@ -520,22 +523,6 @@ def handle_edit(event):
     not_selected[selection] = False
     if choice == 'del_all':
         data_input.value = empty_df
-    elif choice == 'copy':
-        if len(selection) == 0:
-            df_to_copy = df
-        else:
-            df_to_copy = data_input.selected_dataframe
-        copy_txt = df_to_copy.to_csv(index=False, sep='\t',
-                                     columns=['substrate', 'rate'])
-        clipboard.copy(copy_txt)
-    elif choice == 'paste':
-        paste_txt = clipboard.paste()
-        pasted_df = read_data(paste_txt)
-        if len(df) <= 1:
-            data_input.value = pasted_df
-        else:
-            newdf = pd.concat([df, pasted_df], ignore_index=True)
-            data_input.value = newdf
     elif choice == 'toggle_use':
         if len(selection) == 0:
             not_selected = ~not_selected
@@ -555,32 +542,15 @@ def handle_edit(event):
         pass  # do nothing
 
 
-edit_button = pn.widgets.MenuButton(name='Edit', width=120,
-                                    items=menu_items,
-                                    button_type='success')
-edit_button.on_click(handle_edit)
-
-
-# paste button
-
-def b_paste(event):
-    df = data_input.value
-    paste_txt = clipboard.paste()
-    pasted_df = read_data(paste_txt)
-    if len(df) <= 1:
-        data_input.value = pasted_df
-    else:
-        newdf = pd.concat([df, pasted_df], ignore_index=True)
-        data_input.value = newdf
-
-
-paste_button = Button(name='Paste')
-paste_button.on_click(b_paste)
-
+select_button = pn.widgets.MenuButton(name='Select', width=120,
+                                      items=menu_items,
+                                      button_type='success')
+select_button.on_click(handle_edit)
 
 # txt vs DataFrame view
 
-edit_table_group = pn.widgets.RadioButtonGroup(options=['table', 'text'], width=100)
+edit_table_group = pn.widgets.RadioButtonGroup(options=['table', 'text'],
+                                               width=100)
 edit_table_group.value = 'table'
 
 # demo data
@@ -684,8 +654,8 @@ results_text = pn.pane.Str('', styles={'font-family': "monospace",
 def b_reset(event):
     results_pane.visible = False
     data_input.value = empty_df
-    edit_button.value = False
-    # edit_table_group.value = 'Edit'
+    data_input_text.value = ''
+    edit_table_group.value = 'table'
     results_text.object = ''
     # data_input_text.value = data_input_text.placeholder
 
@@ -724,10 +694,10 @@ fit_button = Button(name='Fit', width=150,
 fit_button.on_click(b_fit)
 
 edit_buttons = pn.Row(edit_table_group,
-                    #   paste_button,
+                      #   paste_button,
                       demo_button,
-                      edit_button,
-                      add_row_button)
+                      add_row_button,
+                      select_button,)
 
 data_input_column = pn.Column(edit_buttons, data_input, height=250)
 # data_input_column = pn.Column(data_input_text, height=200)
@@ -739,10 +709,16 @@ def change_data_view(event):
         as_txt = df.to_csv(index=False, sep='\t',
                            columns=['substrate', 'rate'])
         data_input_text.value = as_txt
+        demo_button.disabled = True
+        add_row_button.disabled = True
+        select_button.disabled = True
         data_input_column[1] = data_input_text
     else:
         df = read_data(data_input_text.value)
         data_input.value = df
+        demo_button.disabled = False
+        add_row_button.disabled = False
+        select_button.disabled = False
         data_input_column[1] = data_input
 
 
