@@ -437,26 +437,41 @@ def draw_cornish_bowden_plot(ax, results,
 def read_data(data):
     a = []
     v0 = []
+    use = []
+    allowed_nots = ('0', 'UNUSED', 'NO', 'FALSE', 'NOT', 'FALSE', 'NA', 'N/A')
     for line in data.splitlines():
         line = line.strip()
         if len(line) == 0:
             continue
         if line.startswith('#'):
             continue
-        x1, x2 = line.split(None, 2)
         try:
+            x1, x2, *x3 = line.split(None, 2)
             x1, x2 = float(x1), float(x2)
         except ValueError:
             continue
+        datum_use = True
+        if len(x3) > 0 and (x3[0].upper() in allowed_nots):
+            datum_use = False
         a.append(x1)
         v0.append(x2)
+        use.append(datum_use)
     if len(a) == 0:
         result = empty_df
     else:
         result = pd.DataFrame({'substrate': a,
                                'rate': v0,
-                               'use': [True]*len(a)})
+                               'use': use})
     return result
+
+
+def data_as_txt(df):
+    lines = ['substrate      rate']
+    for lbl, row in df.iterrows():
+        used = '  unused' if not row.use else ''
+        line = f'{row.substrate:.5f}   {row.rate:.5f}{used}'
+        lines.append(line)
+    return '\n'.join(lines)
 
 
 # widgetry
@@ -562,7 +577,8 @@ edit_table_group.value = 'table'
 # [Wilkinson, G.N. (1961) Biochem. J. 80(2):324–332]
 # (https://doi.org/10.1042/bj0800324)
 
-DEMO_DATA = """0.138 0.148
+DEMO_DATA = """# https://doi.org/10.1042/bj0800318
+0.138 0.148
 0.220 0.171
 0.291 0.234
 0.560 0.324
@@ -705,10 +721,7 @@ data_input_column = pn.Column(edit_buttons, data_input, height=250)
 
 def change_data_view(event):
     if event.new == 'text':
-        df = data_input.value
-        as_txt = df.to_csv(index=False, sep='\t',
-                           columns=['substrate', 'rate'])
-        data_input_text.value = as_txt
+        data_input_text.value = data_as_txt(data_input.value)
         demo_button.disabled = True
         add_row_button.disabled = True
         select_button.disabled = True
