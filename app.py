@@ -434,12 +434,15 @@ def draw_cornish_bowden_plot(ax, results,
         ax.grid()
 
 
-def read_data(data):
+def read_data(data, return_msgs=False):
     a = []
     v0 = []
     use = []
+    msgs = []
     allowed_nots = ('0', 'UNUSED', 'NO', 'FALSE', 'NOT', 'FALSE', 'NA', 'N/A')
+    line_counter = 0
     for line in data.splitlines():
+        line_counter += 1
         line = line.strip()
         if len(line) == 0:
             continue
@@ -447,8 +450,14 @@ def read_data(data):
             continue
         try:
             x1, x2, *x3 = line.split(None, 2)
+        except ValueError:
+            msgs.append(f'line {line_counter} skipped (too few values)')
+            continue
+        try:
             x1, x2 = float(x1), float(x2)
         except ValueError:
+            if line_counter > 1:
+                msgs.append(f'line {line_counter} skipped (not valid numbers)')
             continue
         datum_use = True
         if len(x3) > 0 and (x3[0].upper() in allowed_nots):
@@ -462,7 +471,11 @@ def read_data(data):
         result = pd.DataFrame({'substrate': a,
                                'rate': v0,
                                'use': use})
-    return result
+    msg = msg = '\n'.join(msgs) if len(msgs) > 0 else ''
+    if return_msgs:
+        return result, msg
+    else:
+        return result
 
 
 def data_as_txt(df):
@@ -727,12 +740,15 @@ def change_data_view(event):
         select_button.disabled = True
         data_input_column[1] = data_input_text
     else:
-        df = read_data(data_input_text.value)
+        df, msg = read_data(data_input_text.value, return_msgs=True)
         data_input.value = df
         demo_button.disabled = False
         add_row_button.disabled = False
         select_button.disabled = False
         data_input_column[1] = data_input
+        if msg:
+            pn.state.notifications.position = 'top-center'
+            pn.state.notifications.warning(msg, duration=5000)
 
 
 edit_table_group.param.watch(change_data_view, 'value')
