@@ -18,6 +18,8 @@ pn.extension('tabulator', 'mathjax')
 pn.extension('notifications')
 pn.extension(notifications=True)
 
+template = pn.template.VanillaTemplate(title='Michaelis-Menten equation fitting')
+
 # fitting methods section
 
 
@@ -505,16 +507,16 @@ editors = {'use': 'tickCross',
            'rate': {'type': 'number', 'max': 1000, 'step': 0.01,
                     'verticalNavigation': 'table'}}
 
-data_input = pn.widgets.Tabulator(empty_df, width=310, show_index=False,
+data_input = pn.widgets.Tabulator(empty_df, width=400, show_index=False,
                                   selectable='checkbox',
-                                  widths={'substrate': 100, 'rate': 100},
+                                  widths={'substrate': 130, 'rate': 130},
                                   text_align={'substrate': 'left',
                                               'rate': 'left',
                                               'use': 'center'},
                                   formatters=formatters,
                                   editors=editors)
 
-data_input_text = pn.widgets.input.TextAreaInput(width=310,
+data_input_text = pn.widgets.input.TextAreaInput(width=350,
                                                  sizing_mode='stretch_height',
                                                  min_height=220)
 
@@ -753,13 +755,12 @@ def change_data_view(event):
 
 edit_table_group.param.watch(change_data_view, 'value')
 
-header = pn.pane.Markdown(r"""## Michaelis-Menten equation fitting
+header = pn.pane.Markdown(r"""#### Fitting Michaelis-Menten equation to kinetic data using seven methods
 
 $$v_o = \\frac{V a}{K_m + a}$$
 
 by António Ferreira
 
-### Data input
 """, renderer='markdown')
 
 # figures holding matplotlib plots
@@ -783,8 +784,7 @@ init_figures()
 mpl_hypers = pn.pane.Matplotlib(res_interface.f_ax['hypers_f'])
 mpl_others = pn.pane.Matplotlib(res_interface.f_ax['others_f'])
 
-data_input_row = pn.Row(pn.WidgetBox(data_input_column, height=320),
-                        pn.Column(fit_button, clear_button))
+data_input_row = pn.Row(pn.WidgetBox(data_input_column, height=320, width=400),)
 
 # plot settings
 method_choice = CheckBoxGroup.from_param(res_interface.
@@ -815,7 +815,14 @@ results_pane = pn.Column(pn.layout.Divider(), "### Parameter values",
 # start results pane hidden
 results_pane.visible = False
 
-app_column = pn.Column(header, data_input_row, results_pane)
+# arrange components in template
+sidebar = pn.Column(header, fit_button, clear_button)
+template.sidebar.append(sidebar)
 
-app_column.servable(title='Michaelis-Menten fitting')
+app_column = pn.Column('### Data input',
+                       data_input_row, results_pane)
+template.main.append(app_column)
+
+template.servable();
+# app_column.servable(title='Michaelis-Menten fitting')
 # app_column
