@@ -18,8 +18,6 @@ pn.extension('tabulator', 'mathjax')
 pn.extension('notifications')
 pn.extension(notifications=True)
 
-template = pn.template.VanillaTemplate(title='Michaelis-Menten equation fitting')
-
 # fitting methods section
 
 
@@ -38,7 +36,7 @@ class ResDict(param.Parameterized):
     SE_V = param.Number(default=None,  # bounds=(0.0, None),
                         doc='standard error of the limiting rate')
     SE_Km = param.Number(default=None,  # bounds=(0.0, None),
-                         doc='standard error of the Michelis constant')
+                         doc='standard error of the Michaelis constant')
 
     # Optional for linearizations:
     m = param.Number(default=None, doc='slope of linearization')
@@ -113,7 +111,7 @@ def eadie_hofstee(a, v0):
 
 
 def hyperbolic(a, v0):
-    """Compute parameters by non-linear least-quares regression."""
+    """Compute parameters by non-linear least-squares regression."""
     try:
         popt, pcov, *_ = curve_fit(MM, a, v0, p0=(max(v0), np.median(a)),
                                    full_output=True,
@@ -222,6 +220,8 @@ all_methods_list = ('Hyperbolic Regression',
                     'Eadie-Hofstee',
                     'Eisenthal-C.Bowden')
 
+plt.rc('mathtext', fontset='cm')
+
 
 def hypers_mpl(results=None, ax=None, plot_settings=None,
                title=None,
@@ -241,11 +241,11 @@ def hypers_mpl(results=None, ax=None, plot_settings=None,
     v0 = results['v0']
     all_results = results['results']
 
-    plt.rc('mathtext', fontset='cm')
+    # plt.rc('mathtext', fontset='cm')
     # defaults
     colorscheme = default_color_scheme
     include_methods = all_methods_list
-    # overide with plot_settings
+    # override with plot_settings
     if plot_settings is not None:
         include_methods = plot_settings.include_methods
 
@@ -277,10 +277,12 @@ def hypers_mpl(results=None, ax=None, plot_settings=None,
             markersize=6)
     ax.set_xlabel('$a$', fontsize=16)
     ax.set_ylabel('$v_o$', fontsize=16)
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
     if legend:
         ax.legend(loc='lower right')
     if grid:
-        ax.grid()
+        ax.grid(color="0.90")
 
 
 def plot_others_mpl(results=None, f=None, colorscheme=None, grid=True):
@@ -299,7 +301,6 @@ def plot_others_mpl(results=None, f=None, colorscheme=None, grid=True):
 
     if colorscheme is None:
         colorscheme = default_color_scheme
-    plt.rc('mathtext', fontset='cm')
 
     ax = f.subplots(2, 2)
     ax = ax.flatten()
@@ -338,6 +339,8 @@ def draw_lin_plot(ax, result, color='black',
 
     ax.set_ylim(0, ytop)
     ax.set_xlim(0, xmax)
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
 
     ax.plot([0, xmax], [result.b, ymax], color=color,
             linestyle='solid', lw=2)
@@ -364,7 +367,7 @@ def draw_lin_plot(ax, result, color='black',
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     if grid:
-        ax.grid()
+        ax.grid(color="0.90")
 
 
 def draw_cornish_bowden_plot(ax, results,
@@ -403,6 +406,11 @@ def draw_cornish_bowden_plot(ax, results,
     ax.set_title(title)
     ax.set_ylim(0, ymax)
     ax.set_xlim(-xmin, xmax)
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.axvline(x=0, color='black')
+    ax.tick_params(axis='both', which='both', left=False, right=False)
 
     # plot straight lines through (-ai, 0) and (0, vi)
     for m, b in lines:
@@ -430,10 +438,10 @@ def draw_cornish_bowden_plot(ax, results,
             markeredgecolor=color,
             markeredgewidth=1.5,
             markersize=6)
-    ax.set_xlabel('Km')
-    ax.set_ylabel('V')
+    ax.set_xlabel('$Km$')
+    ax.set_ylabel('$V$')
     if grid:
-        ax.grid()
+        ax.grid(color="0.90")
 
 
 def read_data(data, return_msgs=False):
@@ -684,6 +692,7 @@ results_text = pn.pane.Str('', styles={'font-family': "monospace",
 # reset button
 def b_reset(event):
     results_pane.visible = False
+    plot_settings.visible = False
     data_input.value = empty_df
     data_input_text.value = ''
     edit_table_group.value = 'table'
@@ -705,6 +714,7 @@ clear_button.on_click(b_reset)
 def b_fit(event):
     # make results_pane visible and draw
     results_pane.visible = True
+    plot_settings.visible = True
 
     # compute results
     df = data_input.value
@@ -755,7 +765,8 @@ def change_data_view(event):
 
 edit_table_group.param.watch(change_data_view, 'value')
 
-header = pn.pane.Markdown(r"""#### Fitting Michaelis-Menten equation to kinetic data using seven methods
+header = pn.pane.Markdown(r"""
+#### Fitting Michaelis-Menten equation to kinetic data using seven methods
 
 $$v_o = \\frac{V a}{K_m + a}$$
 
@@ -784,7 +795,9 @@ init_figures()
 mpl_hypers = pn.pane.Matplotlib(res_interface.f_ax['hypers_f'])
 mpl_others = pn.pane.Matplotlib(res_interface.f_ax['others_f'])
 
-data_input_row = pn.Row(pn.WidgetBox(data_input_column, height=320, width=400),)
+data_input_row = pn.Row(pn.WidgetBox(data_input_column,
+                                     height=320,
+                                     width=400),)
 
 # plot settings
 method_choice = CheckBoxGroup.from_param(res_interface.
@@ -797,7 +810,9 @@ download_png = FileDownload(callback=res_interface.get_png_hypers,
 download_pdf = FileDownload(callback=res_interface.get_pdf_hypers,
                             filename='hypers.pdf', width=200)
 
-plot_settings = pn.Column("#### Include",
+plot_settings_title = pn.pane.Markdown('''#### Main plot settings''')
+
+plot_settings = pn.Column(plot_settings_title,
                           method_choice,
                           download_png,
                           download_pdf)
@@ -810,19 +825,24 @@ plots_box = pn.WidgetBox(tabs)
 results_pane = pn.Column(pn.layout.Divider(), "### Parameter values",
                          results_text,
                          pn.Spacer(height=50),
-                         pn.Row(plot_settings, plots_box))
+                         pn.Row(plots_box))
 
 # start results pane hidden
 results_pane.visible = False
+plot_settings.visible = False
 
 # arrange components in template
-sidebar = pn.Column(header, fit_button, clear_button)
+app_title = 'Michaelis-Menten equation fitting'
+template = pn.template.VanillaTemplate(title=app_title)
+
+
+sidebar = pn.Column(header, fit_button, clear_button, plot_settings)
 template.sidebar.append(sidebar)
 
 app_column = pn.Column('### Data input',
                        data_input_row, results_pane)
 template.main.append(app_column)
 
-template.servable();
+template.servable()
 # app_column.servable(title='Michaelis-Menten fitting')
 # app_column
