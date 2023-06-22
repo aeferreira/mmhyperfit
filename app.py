@@ -2,11 +2,11 @@
 
 from io import BytesIO
 from itertools import combinations
+from collections import namedtuple
 
 import numpy as np
 import pandas as pd
 from scipy.optimize import (curve_fit, OptimizeWarning)
-from scipy.stats import linregress
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
@@ -64,10 +64,23 @@ def MM(a, V, Km):
     return V * a / (Km + a)
 
 
+def np_linregress(x, y):
+    """Numpy linear regression almost compatible with scipy's linregress."""
+    coefs, cov = np.polyfit(x, y, 1, cov=True)
+    m, b = coefs
+    Sm, Sb = np.diag(cov)**0.5
+    r = np.corrcoef(x, y).ravel()[1]
+    ret_dict = {'slope': m, 'intercept':
+                b, 'rvalue': r, 'stderr':
+                Sm, 'intercept_stderr': Sb}
+    LinregressResult = namedtuple('LinregressResult', ret_dict.keys())
+    return LinregressResult(**ret_dict)
+
+
 def lineweaver_burk(a, v0):
     """Compute parameters by Lineweaver-Burk linearization."""
     x, y = 1/a, 1/v0
-    result = linregress(x, y)
+    result = np_linregress(x, y)
     V = 1.0 / result.intercept
     Km = result.slope / result.intercept
     cv_m = result.stderr/result.slope
@@ -83,7 +96,7 @@ def lineweaver_burk(a, v0):
 def hanes_woolf(a, v0):
     """Compute parameters by Hanes linearization."""
     x, y = a, a/v0
-    result = linregress(x, y)
+    result = np_linregress(x, y)
     V = 1.0 / result.slope
     Km = result.intercept / result.slope
     cv_m = result.stderr/result.slope
@@ -99,7 +112,7 @@ def hanes_woolf(a, v0):
 def eadie_hofstee(a, v0):
     """Compute parameters by Eadie-Hofstee linearization."""
     x, y = v0/a, v0
-    result = linregress(x, y)
+    result = np_linregress(x, y)
     V = result.intercept
     Km = -result.slope
     SV = result.intercept_stderr
