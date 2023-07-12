@@ -6,7 +6,6 @@ from collections import namedtuple
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import (curve_fit, OptimizeWarning)
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
@@ -76,6 +75,7 @@ def np_linregress(x, y):
     LinregressResult = namedtuple('LinregressResult', ret_dict.keys())
     return LinregressResult(**ret_dict)
 
+
 RETURN_MSG = {1: 'Convergence in r.h.s. ("JtWdy")',
               2: 'Convergence in Parameters',
               -2: 'Maximum Number of Iterations Reached Without Convergence',
@@ -128,7 +128,7 @@ def lm(f, p, x, y,
 
     J = None
 
-    DoF = np.array([[n_points - n_pars + 1]])
+    DoF = n_points - n_pars + 1
 
     if len(x) != len(y):
         raise ValueError('Mismatch of x and y lengths in data')
@@ -298,16 +298,18 @@ def eadie_hofstee(a, v0):
 def hyperbolic(a, v0):
     """Compute parameters by non-linear least-squares regression."""
     try:
-        popt, pcov, *_ = curve_fit(MM, a, v0, p0=(max(v0), np.median(a)),
-                                   full_output=True,
-                                   check_finite=True)
+        # popt, pcov, *_ = curve_fit(MM, a, v0, p0=(max(v0), np.median(a)),
+        #                            full_output=True,
+        #                            check_finite=True)
+        p_init = np.array([max(v0), np.median(a)])
+        popt, pcov, *_ = lm(MM, p_init, a, v0, full_output=True)
         errors = np.sqrt(np.diag(pcov))
         V, Km = popt[0:2]
         SV, SKm = errors[0:2]
         res = ResDict(method='Hyperbolic regression',
                       V=V, Km=Km, SE_V=SV,
                       SE_Km=SKm, x=a, y=v0)
-    except (ValueError, RuntimeError, OptimizeWarning) as error:
+    except (ValueError, RuntimeError) as error:
         res = ResDict(method='Hyperbolic regression',
                       error=error_msg('Hyperbolic regression', error),
                       V=0, Km=0, SE_V=0,
