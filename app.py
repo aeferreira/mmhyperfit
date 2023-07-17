@@ -12,7 +12,7 @@ from matplotlib.figure import Figure
 import param
 
 import panel as pn
-from panel.widgets import (Button, CheckBoxGroup, FileDownload)
+from panel.widgets import (Button, FileDownload)
 pn.extension('tabulator', 'mathjax')
 pn.extension('notifications')
 pn.extension(notifications=True)
@@ -469,7 +469,7 @@ def hypers_mpl(results=None, ax=None,
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
     if show_legend:
-        ax.legend(loc='lower right')
+        ax.legend(loc='lower right', fontsize="8")
     if grid:
         ax.grid(color="0.90")
 
@@ -689,9 +689,9 @@ def data_as_txt(df):
 # widgetry
 
 
-empty_df = pd.DataFrame({'substrate': [0.1],
-                         'rate': [0.1],
-                         'use': [True]})
+empty_df = pd.DataFrame({'substrate': pd.Series([], dtype='float'),
+                         'rate': pd.Series([], dtype='float'),
+                         'use': pd.Series([], dtype='bool')})
 empty_df.index.name = '#'
 
 # data input widget (a Tabulator widget)
@@ -850,6 +850,20 @@ class MMResultsInterface(param.Parameterized):
         plot_others_mpl(self.last_results, f=self.f_ax['others_f'])
         mpl_others.param.trigger('object')
 
+    def get_file_hypers(self, image_type='png'):
+        if self.last_results is not None:
+            hypers_mpl(self.last_results, ax=self.f_ax['hypers_ax'],
+                       plot_settings=self.plot_settings)
+            f = self.f_ax['hypers_f']
+            bio = BytesIO()
+            if image_type == 'png':
+                f.savefig(bio, format='png', dpi=100)
+            elif image_type == 'pdf':
+                f.savefig(bio, format='pdf')
+            bio.seek(0)
+            return bio
+        return None
+
     def get_png_hypers(self):
         if self.last_results is not None:
             hypers_mpl(self.last_results, ax=self.f_ax['hypers_ax'],
@@ -901,13 +915,14 @@ clear_button.on_click(b_reset)
 
 # "Fit" button
 def b_fit(event):
-    # make results_pane visible and draw
-    results_pane.visible = True
 
     # compute results
+    edit_table_group.value = 'table'
     df = data_input.value
     df = df[df.use]
     # TODO: validate
+    # make results_pane visible and draw
+    results_pane.visible = True
     subs_conc = df['substrate'].values
     v0_values = df['rate'].values
     res_interface.last_results = compute_methods(subs_conc, v0_values)
@@ -954,7 +969,7 @@ def change_data_view(event):
 edit_table_group.param.watch(change_data_view, 'value')
 
 header = pn.pane.Markdown(r"""
-#### Fitting Michaelis-Menten equation to kinetic data using seven methods
+#### Fitting Michaelis-Menten equation to kinetic data using five methods
 
 $$v_o = \\frac{V a}{K_m + a}$$
 
@@ -988,24 +1003,30 @@ data_input_row = pn.Row(pn.WidgetBox(data_input_column,
                                      width=400),)
 
 # plot settings
-method_choice = CheckBoxGroup.from_param(res_interface.
-                                         plot_settings.param.
-                                         include_methods,
-                                         inline=False)
+method_choice = pn.widgets.MultiChoice.from_param(res_interface.
+                                                  plot_settings.param.
+                                                  include_methods,)
 
 display_legend = pn.widgets.Checkbox.from_param(res_interface.
-                                         plot_settings.param.
-                                         show_legend,
-                                         inline=False)
+                                                plot_settings.param.
+                                                show_legend)
 
 download_png = FileDownload(callback=res_interface.get_png_hypers,
                             filename='hypers.png', width=200)
 download_pdf = FileDownload(callback=res_interface.get_pdf_hypers,
                             filename='hypers.pdf', width=200)
+download_image = FileDownload(callback=res_interface.get_pdf_hypers,
+                              label='Download image',
+                              filename='hypers.pdf', width=200)
+
+image_format = pn.widgets.RadioBoxGroup(name='Image format',
+                                        options=['png', 'pdf'],
+                                        inline=False)
 
 plot_settings = pn.Column(pn.pane.Markdown('''#### Plot settings'''),
                           method_choice,
                           display_legend,
+                          #   pn.Row(download_image, image_format),
                           download_png,
                           download_pdf)
 
