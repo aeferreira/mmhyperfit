@@ -410,9 +410,9 @@ all_methods_list = ('Hyperbolic Regression',
 plt.rc('mathtext', fontset='cm')
 
 
-def hypers_mpl(results=None, ax=None, plot_settings=None,
+def hypers_mpl(results=None, ax=None,
+               plot_settings=None,
                title=None,
-               legend=True,
                grid=True):
 
     if ax is None:
@@ -432,9 +432,11 @@ def hypers_mpl(results=None, ax=None, plot_settings=None,
     # defaults
     colorscheme = default_color_scheme
     include_methods = all_methods_list
+    show_legend = True
     # override with plot_settings
     if plot_settings is not None:
         include_methods = plot_settings.include_methods
+        show_legend = plot_settings.show_legend
 
     xmax = max(a) * 1.1
     ymax = max(v0) * 1.1
@@ -466,7 +468,7 @@ def hypers_mpl(results=None, ax=None, plot_settings=None,
     ax.set_ylabel('$v_o$', fontsize=16)
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
-    if legend:
+    if show_legend:
         ax.legend(loc='lower right')
     if grid:
         ax.grid(color="0.90")
@@ -824,6 +826,7 @@ demo_button.on_click(b_demo)
 class PlotSettings(param.Parameterized):
     include_methods = param.ListSelector(default=list(all_methods_list),
                                          objects=list(all_methods_list))
+    show_legend = param.Boolean(default=True, label='Legend')
 
 
 class MMResultsInterface(param.Parameterized):
@@ -879,7 +882,6 @@ results_text = pn.pane.Str('', styles={'font-family': "monospace",
 # reset button
 def b_reset(event):
     results_pane.visible = False
-    plot_settings.visible = False
     data_input.value = empty_df
     data_input_text.value = ''
     edit_table_group.value = 'table'
@@ -901,7 +903,6 @@ clear_button.on_click(b_reset)
 def b_fit(event):
     # make results_pane visible and draw
     results_pane.visible = True
-    plot_settings.visible = True
 
     # compute results
     df = data_input.value
@@ -992,20 +993,24 @@ method_choice = CheckBoxGroup.from_param(res_interface.
                                          include_methods,
                                          inline=False)
 
+display_legend = pn.widgets.Checkbox.from_param(res_interface.
+                                         plot_settings.param.
+                                         show_legend,
+                                         inline=False)
+
 download_png = FileDownload(callback=res_interface.get_png_hypers,
                             filename='hypers.png', width=200)
 download_pdf = FileDownload(callback=res_interface.get_pdf_hypers,
                             filename='hypers.pdf', width=200)
 
-plot_settings_title = pn.pane.Markdown('''#### Main plot settings''')
-
-plot_settings = pn.Column(plot_settings_title,
+plot_settings = pn.Column(pn.pane.Markdown('''#### Plot settings'''),
                           method_choice,
+                          display_legend,
                           download_png,
                           download_pdf)
 
 # plots
-tabs = pn.Tabs(('MM equation plot', mpl_hypers),
+tabs = pn.Tabs(('MM equation plot', pn.Row(mpl_hypers, plot_settings)),
                ('Secondary plots', mpl_others))
 plots_box = pn.WidgetBox(tabs)
 
@@ -1016,14 +1021,13 @@ results_pane = pn.Column(pn.layout.Divider(), "### Parameter values",
 
 # start results pane hidden
 results_pane.visible = False
-plot_settings.visible = False
 
 # arrange components in template
 app_title = 'Michaelis-Menten equation fitting'
 template = pn.template.VanillaTemplate(title=app_title)
 
 
-sidebar = pn.Column(header, fit_button, clear_button, plot_settings)
+sidebar = pn.Column(header, fit_button, clear_button)
 template.sidebar.append(sidebar)
 
 app_column = pn.Column('### Data input',
