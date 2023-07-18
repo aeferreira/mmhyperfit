@@ -850,38 +850,20 @@ class MMResultsInterface(param.Parameterized):
         plot_others_mpl(self.last_results, f=self.f_ax['others_f'])
         mpl_others.param.trigger('object')
 
-    def get_file_hypers(self, image_type='png'):
+    def get_file_hypers(self):
         if self.last_results is not None:
+            image_type = image_format.value
             hypers_mpl(self.last_results, ax=self.f_ax['hypers_ax'],
                        plot_settings=self.plot_settings)
             f = self.f_ax['hypers_f']
             bio = BytesIO()
+            download_image.filename = f'hypers.{image_type}'
             if image_type == 'png':
-                f.savefig(bio, format='png', dpi=100)
+                f.savefig(bio, format='png', dpi=150)
             elif image_type == 'pdf':
                 f.savefig(bio, format='pdf')
-            bio.seek(0)
-            return bio
-        return None
-
-    def get_png_hypers(self):
-        if self.last_results is not None:
-            hypers_mpl(self.last_results, ax=self.f_ax['hypers_ax'],
-                       plot_settings=self.plot_settings)
-            f = self.f_ax['hypers_f']
-            bio = BytesIO()
-            f.savefig(bio, format='png', dpi=100)
-            bio.seek(0)
-            return bio
-        return None
-
-    def get_pdf_hypers(self):
-        if self.last_results is not None:
-            hypers_mpl(self.last_results, ax=self.f_ax['hypers_ax'],
-                       plot_settings=self.plot_settings)
-            f = self.f_ax['hypers_f']
-            bio = BytesIO()
-            f.savefig(bio, format='pdf')
+            elif image_type == 'svg':
+                f.savefig(bio, format='svg', dpi=150)
             bio.seek(0)
             return bio
         return None
@@ -909,7 +891,7 @@ def b_reset(event):
     mpl_others.param.trigger('object')
 
 
-clear_button = Button(name='Reset', button_type='danger', width=150)
+clear_button = Button(name='Clear', button_type='danger', width=150)
 clear_button.on_click(b_reset)
 
 
@@ -920,11 +902,16 @@ def b_fit(event):
     edit_table_group.value = 'table'
     df = data_input.value
     df = df[df.use]
-    # TODO: validate
-    # make results_pane visible and draw
-    results_pane.visible = True
     subs_conc = df['substrate'].values
     v0_values = df['rate'].values
+    # TODO: validate
+    msg = ''
+    if msg:
+        pn.state.notifications.position = 'top-center'
+        pn.state.notifications.error(msg, duration=5000)
+        return
+    # make results_pane visible and compute results
+    results_pane.visible = True
     res_interface.last_results = compute_methods(subs_conc, v0_values)
 
     # fill results text and trigger the drawing of new plots
@@ -1011,24 +998,20 @@ display_legend = pn.widgets.Checkbox.from_param(res_interface.
                                                 plot_settings.param.
                                                 show_legend)
 
-download_png = FileDownload(callback=res_interface.get_png_hypers,
-                            filename='hypers.png', width=200)
-download_pdf = FileDownload(callback=res_interface.get_pdf_hypers,
-                            filename='hypers.pdf', width=200)
-download_image = FileDownload(callback=res_interface.get_pdf_hypers,
-                              label='Download image',
-                              filename='hypers.pdf', width=200)
+download_image = FileDownload(callback=res_interface.get_file_hypers,
+                              label='Download image as',
+                              icon='download',
+                              filename='hypers.pdf', height=30)
 
-image_format = pn.widgets.RadioBoxGroup(name='Image format',
-                                        options=['png', 'pdf'],
-                                        inline=False)
+image_format = pn.widgets.RadioButtonGroup(name='Image format',
+                                           options=['png', 'svg'],
+                                           button_style='outline',
+                                           button_type='primary')
 
 plot_settings = pn.Column(pn.pane.Markdown('''#### Plot settings'''),
                           method_choice,
                           display_legend,
-                          #   pn.Row(download_image, image_format),
-                          download_png,
-                          download_pdf)
+                          pn.Row(download_image, image_format), )
 
 # plots
 tabs = pn.Tabs(('MM equation plot', pn.Row(mpl_hypers, plot_settings)),
