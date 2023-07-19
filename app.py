@@ -433,13 +433,18 @@ def hypers_mpl(results=None, ax=None,
     colorscheme = default_color_scheme
     include_methods = all_methods_list
     show_legend = True
+    show_Kms = False
     # override with plot_settings
     if plot_settings is not None:
         include_methods = plot_settings.include_methods
         show_legend = plot_settings.show_legend
+        show_Kms = plot_settings.show_Kms
 
     xmax = max(a) * 1.1
     ymax = max(v0) * 1.1
+    maxKm = max([result.Km for result in all_results])
+    if maxKm > xmax:
+        xmax = maxKm
 
     if title is not None:
         ax.set_title(title)
@@ -457,6 +462,12 @@ def hypers_mpl(results=None, ax=None,
 
         ax.plot(line_x, line_y, label=result.method,
                 color=color, linestyle='solid', lw=2)
+        if show_Kms:
+            line_x = (0.0, Km, Km)
+            line_y = (V / 2.0, V / 2.0, 0.0)
+            ax.plot(line_x, line_y, color=color,
+                    linestyle='solid', lw=0.8,
+                    marker='o', markersize=3, clip_on=False)
 
     ax.plot(a, v0, marker='o',
             linestyle='None',
@@ -581,12 +592,6 @@ def draw_cornish_bowden_plot(ax, results,
     viz_intersections = np.compress(finite_intersections,
                                     intersections,
                                     axis=0)
-
-    # print('intersections ---------------')
-    # print(intersections)
-
-    # print('viz_intersections ---------------')
-    # print(viz_intersections)
 
     xmax = max(viz_intersections[:, 0]) * 1.1
     ymax = max(viz_intersections[:, 1]) * 1.1
@@ -827,6 +832,7 @@ class PlotSettings(param.Parameterized):
     include_methods = param.ListSelector(default=list(all_methods_list),
                                          objects=list(all_methods_list))
     show_legend = param.Boolean(default=True, label='Legend')
+    show_Kms = param.Boolean(default=False, label='Km')
 
 
 class MMResultsInterface(param.Parameterized):
@@ -904,8 +910,13 @@ def b_fit(event):
     df = df[df.use]
     subs_conc = df['substrate'].values
     v0_values = df['rate'].values
-    # TODO: validate
-    msg = ''
+    # validate data
+    if len(subs_conc) <= 2:
+        msg = 'Too few points (must be at least 3)'
+    elif np.var(subs_conc) / np.mean(subs_conc) < 1e-8:
+        msg = 'substrate concentrations too close to perform fitting'
+    else:
+        msg = ''
     if msg:
         pn.state.notifications.position = 'top-center'
         pn.state.notifications.error(msg, duration=5000)
@@ -998,6 +1009,10 @@ display_legend = pn.widgets.Checkbox.from_param(res_interface.
                                                 plot_settings.param.
                                                 show_legend)
 
+display_Kms = pn.widgets.Checkbox.from_param(res_interface.
+                                             plot_settings.param.
+                                             show_Kms)
+
 download_image = FileDownload(callback=res_interface.get_file_hypers,
                               label='Download image as',
                               icon='download',
@@ -1010,7 +1025,7 @@ image_format = pn.widgets.RadioButtonGroup(name='Image format',
 
 plot_settings = pn.Column(pn.pane.Markdown('''#### Plot settings'''),
                           method_choice,
-                          display_legend,
+                          pn.Row(display_legend, display_Kms),
                           pn.Row(download_image, image_format), )
 
 # plots
