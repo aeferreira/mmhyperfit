@@ -412,8 +412,7 @@ plt.rc('mathtext', fontset='cm')
 
 def hypers_mpl(results=None, ax=None,
                plot_settings=None,
-               title=None,
-               grid=True):
+               title=None):
 
     if ax is None:
         return
@@ -431,26 +430,21 @@ def hypers_mpl(results=None, ax=None,
     # plt.rc('mathtext', fontset='cm')
     # defaults
     colorscheme = default_color_scheme
-    include_methods = all_methods_list
-    show_legend = True
-    show_Kms = False
-    # override with plot_settings
-    if plot_settings is not None:
-        include_methods = plot_settings.include_methods
-        show_legend = plot_settings.show_legend
-        show_Kms = plot_settings.show_Kms
 
-    xmax = max(a) * 1.1
-    ymax = max(v0) * 1.1
     maxKm = max([result.Km for result in all_results])
-    if maxKm > xmax:
-        xmax = maxKm
+    maxV = max([result.V for result in all_results])
+    xmax = max(max(a), maxKm) * 1.1
+    if plot_settings.show_Vs:
+        ymax = max(max(v0), maxV)
+    else:
+        ymax = max(v0)
+    ymax = ymax * 1.1
 
     if title is not None:
         ax.set_title(title)
     ax.set_ylim(0, ymax)
     ax.set_xlim(0, xmax)
-    chosen3letter = [choice[:3] for choice in include_methods]
+    chosen3letter = [choice[:3] for choice in plot_settings.include_methods]
 
     for result, color in zip(all_results, colorscheme):
         if result.method[:3] not in chosen3letter:
@@ -461,27 +455,29 @@ def hypers_mpl(results=None, ax=None,
         line_y = MM(line_x, V, Km)
 
         ax.plot(line_x, line_y, label=result.method,
-                color=color, linestyle='solid', lw=2)
-        if show_Kms:
+                color=color, linestyle='solid', lw=2, zorder=4.0)
+        if plot_settings.show_Kms:
             line_x = (0.0, Km, Km)
             line_y = (V / 2.0, V / 2.0, 0.0)
             ax.plot(line_x, line_y, color=color,
                     linestyle='solid', lw=0.8,
-                    marker='o', markersize=3, clip_on=False)
+                    marker='o', markersize=3, clip_on=False, zorder=3.5)
+        if plot_settings.show_Vs:
+            ax.axhline(y=V, color=color, linestyle='solid', lw=0.8, zorder=3.5)
 
     ax.plot(a, v0, marker='o',
             linestyle='None',
             markerfacecolor='white',
             markeredgecolor='black',
             markeredgewidth=1.5,
-            markersize=6)
+            markersize=6, zorder=5)
     ax.set_xlabel('$a$', fontsize=16)
     ax.set_ylabel('$v_o$', fontsize=16)
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
-    if show_legend:
+    if plot_settings.show_legend:
         ax.legend(loc='lower right', fontsize="8")
-    if grid:
+    if plot_settings.show_grid:
         ax.grid(color="0.90")
 
 
@@ -832,8 +828,9 @@ class PlotSettings(param.Parameterized):
     include_methods = param.ListSelector(default=list(all_methods_list),
                                          objects=list(all_methods_list))
     show_legend = param.Boolean(default=True, label='Legend')
+    show_grid = param.Boolean(default=False, label='Grid')
     show_Kms = param.Boolean(default=False, label='Km')
-
+    show_Vs = param.Boolean(default=False, label='V')
 
 class MMResultsInterface(param.Parameterized):
     last_results = param.Dict({})
@@ -936,7 +933,6 @@ fit_button = Button(name='Fit', width=150,
 fit_button.on_click(b_fit)
 
 edit_buttons = pn.Row(edit_table_group,
-                      #   paste_button,
                       demo_button,
                       add_row_button,
                       select_button,)
@@ -1009,9 +1005,17 @@ display_legend = pn.widgets.Checkbox.from_param(res_interface.
                                                 plot_settings.param.
                                                 show_legend)
 
+display_grid = pn.widgets.Checkbox.from_param(res_interface.
+                                              plot_settings.param.
+                                              show_grid)
+
 display_Kms = pn.widgets.Checkbox.from_param(res_interface.
                                              plot_settings.param.
                                              show_Kms)
+
+display_Vs = pn.widgets.Checkbox.from_param(res_interface.
+                                            plot_settings.param.
+                                            show_Vs)
 
 download_image = FileDownload(callback=res_interface.get_file_hypers,
                               label='Download image as',
@@ -1025,7 +1029,10 @@ image_format = pn.widgets.RadioButtonGroup(name='Image format',
 
 plot_settings = pn.Column(pn.pane.Markdown('''#### Plot settings'''),
                           method_choice,
-                          pn.Row(display_legend, display_Kms),
+                          pn.Row(display_legend,
+                                 display_grid,
+                                 display_Kms,
+                                 display_Vs),
                           pn.Row(download_image, image_format), )
 
 # plots
