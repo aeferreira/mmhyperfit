@@ -1029,6 +1029,7 @@ image_format = pn.widgets.RadioButtonGroup(name='Image format',
 
 plot_settings = pn.Column(pn.pane.Markdown('''#### Plot settings'''),
                           method_choice,
+                          pn.widgets.StaticText(value='Show'),
                           pn.Row(display_legend,
                                  display_grid,
                                  display_Kms,
