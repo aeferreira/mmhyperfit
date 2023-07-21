@@ -1,8 +1,6 @@
-"""Methods to compute Michaelis-Menten equation parameters and statistics."""
+"""panel app to perform Michaelis-Menten equation fitting."""
 
 from io import BytesIO
-# from itertools import combinations
-# from collections import namedtuple
 
 import numpy as np
 import pandas as pd
@@ -12,12 +10,13 @@ from matplotlib.figure import Figure
 import param
 
 import panel as pn
-from panel.widgets import (Button, FileDownload)
+from panel.widgets import Button
 
 from mm_fitting.methods import MM, compute_methods
 
+APP_VERSION = "1.0"
+
 pn.extension('tabulator', 'mathjax')
-pn.extension('notifications')
 pn.extension(notifications=True)
 
 
@@ -513,7 +512,7 @@ class MMResultsInterface(param.Parameterized):
         plot_others_mpl(self.last_results, f=self.f_ax['others_f'])
         mpl_others.param.trigger('object')
 
-    def get_file_hypers(self):
+    def hypers_file(self):
         if self.last_results is not None:
             image_type = image_format.value
             hypers_mpl(self.last_results, ax=self.f_ax['hypers_ax'],
@@ -622,14 +621,14 @@ def change_data_view(event):
 
 edit_table_group.param.watch(change_data_view, 'value')
 
-header = pn.pane.Markdown(r"""
+desc = pn.pane.Markdown(r"""
 #### Fitting Michaelis-Menten equation to kinetic data using five methods
 
 $$v_o = \\frac{V a}{K_m + a}$$
 
 by António Ferreira
 
-""", renderer='markdown')
+Version """ + f'{APP_VERSION}', renderer='markdown')
 
 # figures holding matplotlib plots
 
@@ -657,30 +656,18 @@ data_input_row = pn.Row(pn.WidgetBox(data_input_column,
                                      width=400),)
 
 # plot settings
-method_choice = pn.widgets.MultiChoice.from_param(res_interface.
-                                                  plot_settings.param.
-                                                  include_methods,)
+parsetts = res_interface.plot_settings.param
+method_choice = pn.widgets.MultiChoice.from_param(parsetts.include_methods)
+display_legend = pn.widgets.Checkbox.from_param(parsetts.show_legend)
+display_grid = pn.widgets.Checkbox.from_param(parsetts.show_grid)
+display_Kms = pn.widgets.Checkbox.from_param(parsetts.show_Kms)
+display_Vs = pn.widgets.Checkbox.from_param(parsetts.show_Vs)
 
-display_legend = pn.widgets.Checkbox.from_param(res_interface.
-                                                plot_settings.param.
-                                                show_legend)
-
-display_grid = pn.widgets.Checkbox.from_param(res_interface.
-                                              plot_settings.param.
-                                              show_grid)
-
-display_Kms = pn.widgets.Checkbox.from_param(res_interface.
-                                             plot_settings.param.
-                                             show_Kms)
-
-display_Vs = pn.widgets.Checkbox.from_param(res_interface.
-                                            plot_settings.param.
-                                            show_Vs)
-
-download_image = FileDownload(callback=res_interface.get_file_hypers,
-                              label='Download image as',
-                              icon='download',
-                              filename='hypers.pdf', height=30)
+download_image = pn.widgets.FileDownload(callback=res_interface.hypers_file,
+                                         label='Download image as',
+                                         icon='download',
+                                         filename='hypers.pdf',
+                                         height=30)
 
 image_format = pn.widgets.RadioButtonGroup(name='Image format',
                                            options=['png', 'svg'],
@@ -713,8 +700,9 @@ results_pane.visible = False
 app_title = 'Michaelis-Menten equation fitting'
 template = pn.template.VanillaTemplate(title=app_title)
 
-
-sidebar = pn.Column(header, fit_button, clear_button)
+sidebar = pn.Column(desc,
+                    fit_button,
+                    clear_button)
 template.sidebar.append(sidebar)
 
 app_column = pn.Column('### Data input',
