@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mm_fitting"
+version = "1.0"
+description = "Methods to compute Michaelis-Menten equation parameters and statistics."
+requires-python = ">=3.9"
+license = {file = "LICENSE"}
+authors = [
+    { name = "António Ferreira", email = "aeferreira@fc.ul.pt" },
+]
+keywords = [
+    "Michaelis-Menten equation",
+    "parameter estimation",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    "numpy",
+    "pandas>=1.5",
+    "param>=1.13"
+]
+
+
