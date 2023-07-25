@@ -9,6 +9,13 @@ import param
 
 # fitting methods section
 
+field_names = 'method error V Km SE_V SE_Km m b x y intersections dlp_lines'
+field_defaults = ('Hanes', None, 0.0, 0.0, None, None,
+                  None, None, None, None, None, None)
+ResTuple = namedtuple('ResTuple', field_names,
+                      rename=True,
+                      defaults=field_defaults)
+
 
 class ResDict(param.Parameterized):
     """Class to hold data from a computation."""
@@ -249,9 +256,9 @@ def lineweaver_burk(a, v0):
     cv_b = result.intercept_stderr/result.intercept
     SV = V * cv_b
     SKm = Km * np.sqrt(cv_m**2 + cv_b**2)
-    res = ResDict(method='Lineweaver-Burk',
-                  V=V, Km=Km, SE_V=SV, SE_Km=SKm,
-                  x=x, y=y, m=result.slope, b=result.intercept)
+    res = ResTuple(method='Lineweaver-Burk',
+                   V=V, Km=Km, SE_V=SV, SE_Km=SKm,
+                   x=x, y=y, m=result.slope, b=result.intercept)
     return res
 
 
@@ -265,9 +272,9 @@ def hanes_woolf(a, v0):
     cv_b = result.intercept_stderr/result.intercept
     SV = V * cv_m
     SKm = Km * np.sqrt(cv_m**2 + cv_b**2)
-    res = ResDict(method='Hanes',
-                  V=V, Km=Km, SE_V=SV, SE_Km=SKm,
-                  x=x, y=y, m=result.slope, b=result.intercept)
+    res = ResTuple(method='Hanes',
+                   V=V, Km=Km, SE_V=SV, SE_Km=SKm,
+                   x=x, y=y, m=result.slope, b=result.intercept)
     return res
 
 
@@ -279,9 +286,9 @@ def eadie_hofstee(a, v0):
     Km = -result.slope
     SV = result.intercept_stderr
     SKm = result.stderr
-    res = ResDict(method='Eadie-Hofstee',
-                  V=V, Km=Km, SE_V=SV, SE_Km=SKm,
-                  x=x, y=y, m=result.slope, b=result.intercept)
+    res = ResTuple(method='Eadie-Hofstee',
+                   V=V, Km=Km, SE_V=SV, SE_Km=SKm,
+                   x=x, y=y, m=result.slope, b=result.intercept)
     return res
 
 
@@ -296,14 +303,14 @@ def hyperbolic(a, v0):
         errors = np.sqrt(np.diag(pcov))
         V, Km = popt[0:2]
         SV, SKm = errors[0:2]
-        res = ResDict(method='Hyperbolic regression',
-                      V=V, Km=Km, SE_V=SV,
-                      SE_Km=SKm, x=a, y=v0)
+        res = ResTuple(method='Hyperbolic regression',
+                       V=V, Km=Km, SE_V=SV,
+                       SE_Km=SKm, x=a, y=v0)
     except (ValueError, RuntimeError) as error:
-        res = ResDict(method='Hyperbolic regression',
-                      error=error_msg('Hyperbolic regression', error),
-                      V=0, Km=0, SE_V=0,
-                      SE_Km=0, x=a, y=v0)
+        res = ResTuple(method='Hyperbolic regression',
+                       error=error_msg('Hyperbolic regression', error),
+                       V=0, Km=0, SE_V=0,
+                       SE_Km=0, x=a, y=v0)
     return res
 
 
@@ -327,13 +334,13 @@ def cornish_bowden(a, v0):
         # TODO: compute CIs
 
         # construct results
-        res = ResDict(method='Eisenthal-C.Bowden',
-                      V=V, Km=Km, x=a, y=v0,
-                      intersections=intersects,
-                      dlp_lines=np.array(straights))
+        res = ResTuple(method='Eisenthal-C.Bowden',
+                       V=V, Km=Km, x=a, y=v0,
+                       intersections=intersects,
+                       dlp_lines=np.array(straights))
     except ValueError as error:
-        res = ResDict(method='Eisenthal-C.Bowden', x=a, y=v0,
-                      error=error_msg('Eisenthal-C.Bowden', error))
+        res = ResTuple(method='Eisenthal-C.Bowden', x=a, y=v0,
+                       error=error_msg('Eisenthal-C.Bowden', error))
     return res
 
 
@@ -350,3 +357,6 @@ def compute_methods(a, v0):
                cornish_bowden)
     results = [method(a_nonzero, v0_nonzero) for method in m_table]
     return {'a': a, 'v0': v0, 'results': results}
+
+if __name__ == '__main__':
+    pass
