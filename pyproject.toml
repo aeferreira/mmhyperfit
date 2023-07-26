@@ -7,9 +7,10 @@ name = "mm_fitting"
 version = "1.0"
 description = "Methods to compute Michaelis-Menten equation parameters and statistics."
 requires-python = ">=3.9"
+readme = "README_mmfitting.md"
 license = {file = "LICENSE"}
 authors = [
-    { name = "António Ferreira", email = "aeferreira@fc.ul.pt" },
+    {name = "António Ferreira", email = "ferreiae@gmail.com" },
 ]
 keywords = [
     "Michaelis-Menten equation",
@@ -30,9 +31,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Physics",
 ]
 dependencies = [
-    "numpy",
-    "pandas>=1.5",
-    "param>=1.13"
+    "numpy>=1.1",
 ]
 
 
