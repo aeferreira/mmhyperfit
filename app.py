@@ -553,7 +553,7 @@ def b_reset(event):
     mpl_others.param.trigger('object')
 
 
-clear_button = Button(name='Clear', button_type='danger', width=150)
+clear_button = Button(name='Clear all', button_type='danger', width=150)
 clear_button.on_click(b_reset)
 
 
@@ -622,13 +622,11 @@ def change_data_view(event):
 edit_table_group.param.watch(change_data_view, 'value')
 
 desc = pn.pane.Markdown(r"""
-#### Fitting Michaelis-Menten equation to kinetic data using five methods
+Fitting Michaelis-Menten equation to kinetic data using five methods
 
 $$v_o = \\frac{V a}{K_m + a}$$
 
-by António Ferreira
-
-Version """ + f'{APP_VERSION}', renderer='markdown')
+by António Ferreira, version """ + f'{APP_VERSION}', renderer='markdown')
 
 # figures holding matplotlib plots
 
@@ -651,9 +649,12 @@ init_figures()
 mpl_hypers = pn.pane.Matplotlib(res_interface.f_ax['hypers_f'])
 mpl_others = pn.pane.Matplotlib(res_interface.f_ax['others_f'])
 
-data_input_row = pn.Row(pn.WidgetBox(data_input_column,
+data_input_row = pn.Row(pn.Spacer(width=10),
+                        pn.WidgetBox(data_input_column,
                                      height=320,
-                                     width=400),)
+                                     width=400),
+                        pn.Column(fit_button, clear_button))
+
 
 # plot settings
 parsetts = res_interface.plot_settings.param
@@ -696,19 +697,38 @@ results_pane = pn.Column(pn.layout.Divider(), "### Parameter values",
 # start results pane hidden
 results_pane.visible = False
 
-# arrange components in template
+# arrange components
 app_title = 'Michaelis-Menten equation fitting'
-template = pn.template.VanillaTemplate(title=app_title)
+# template = pn.template.VanillaTemplate(title=app_title)
 
-sidebar = pn.Column(desc,
-                    fit_button,
-                    clear_button)
-template.sidebar.append(sidebar)
+# sidebar = pn.Column(desc,
+#                     # fit_button,
+#                     # clear_button
+#                     )
+# template.sidebar.append(sidebar)
 
-app_column = pn.Column('### Data input',
-                       data_input_row, results_pane)
-template.main.append(app_column)
+custom_header_style = {
+    'background_color': 'rgb(0,114,181)',
+    'color': 'white',
+    'padding': '10px',
+    'margin': '0px 0px',
+    # 'display': 'flex',
+    'box-shadow': '5px 5px 20px silver'
+}
 
-template.servable()
-# app_column.servable(title='Michaelis-Menten fitting')
+header = pn.Row(pn.pane.Markdown('## Michaelis-Menten equation fitting',
+                                 styles=custom_header_style,
+                                 sizing_mode='stretch_width',
+                                 width_policy='max'))
+
+app_column = pn.Column(desc,
+                       '### Data input',
+                       data_input_row,
+                       results_pane)
+
+app_display = pn.Column(header, app_column)
+# template.main.append(app_column)
+
+# template.servable()
+app_display.servable(title='Michaelis-Menten fitting')
 # app_column

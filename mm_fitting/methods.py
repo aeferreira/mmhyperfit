@@ -5,9 +5,7 @@ from collections import namedtuple
 
 import numpy as np
 
-import param
-
-# fitting methods section
+# namedtuple class to contain results
 
 field_names = 'method error V Km SE_V SE_Km m b x y intersections dlp_lines'
 field_defaults = ('Hanes', None, 0.0, 0.0, None, None,
@@ -16,37 +14,7 @@ ResTuple = namedtuple('ResTuple', field_names,
                       rename=True,
                       defaults=field_defaults)
 
-
-class ResDict(param.Parameterized):
-    """Class to hold data from a computation."""
-
-    method = param.String(default='Hanes', doc='Name of the method used')
-    error = param.String(default=None, doc='Computation error description')
-
-    V = param.Number(default=0.0,  # bounds=(0.0, None),
-                     doc='limiting rate')
-    Km = param.Number(default=0.0,  # bounds=(0.0, None),
-                      doc='Michaelis constant')
-
-    # Optional, depending on the method:
-    SE_V = param.Number(default=None,  # bounds=(0.0, None),
-                        doc='standard error of the limiting rate')
-    SE_Km = param.Number(default=None,  # bounds=(0.0, None),
-                         doc='standard error of the Michaelis constant')
-
-    # Optional for linearizations:
-    m = param.Number(default=None, doc='slope of linearization')
-    b = param.Number(default=None, doc='intercept of linearization')
-    x = param.Array(default=None, doc='x-values during linearization')
-    y = param.Array(default=None, doc='y-values during linearization')
-
-    # Optional for direct liner plot:
-    intersections = param.Array(default=None,
-                                doc='dlp intersection coordinates')
-    dlp_lines = param.Array(default=None,
-                            doc='slopes and intercepts of dlp lines')
-
-# ------------ methods --------------------------
+# ------------ fitting methods --------------------------
 # all methods accept numpy arrays as input
 
 
@@ -118,8 +86,7 @@ def lm(f, p, x, y,
     n_pars = len(p)
     p = p.reshape(n_pars, 1)
     n_points = len(y)
-    p_old = None
-    y_old = None
+    p_old, y_old = None, None
     X2 = np.inf
     X2_old = X2
 
@@ -357,6 +324,7 @@ def compute_methods(a, v0):
                cornish_bowden)
     results = [method(a_nonzero, v0_nonzero) for method in m_table]
     return {'a': a, 'v0': v0, 'results': results}
+
 
 if __name__ == '__main__':
     pass
