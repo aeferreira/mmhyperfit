@@ -1,4 +1,6 @@
-# mmhyperfit
+# MM hyperfit
+
+An 
 Fitting data to Michaelis-Menten equation by 5 different methods (python 3)
 
 Methods are:

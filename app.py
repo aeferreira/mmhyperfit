@@ -16,8 +16,8 @@ from mm_fitting.methods import MM, compute_methods
 
 APP_VERSION = "1.0"
 
-pn.extension('tabulator', 'mathjax')
-pn.extension(notifications=True)
+pn.extension('tabulator', 'mathjax', 'floatpanel')
+# pn.extension(notifications=True)
 
 
 # ------------- (str) report of results ------
@@ -466,20 +466,6 @@ demo_button = Button(name='Demo')
 demo_button.on_click(b_demo)
 
 
-# def change_data_view(event):
-#     if event.new == 'Check':
-#         a, v0 = read_data(data_input_text.value)
-#         df = pd.DataFrame({'rate': v0}, index=a)
-#         df.index.name = 'substrate'
-
-#         data_input.value = df
-#         data_input_column[0] = data_input
-#         pn.state.notifications.position = 'top-left'
-#         pn.state.notifications.info('Data OK', duration=3000)
-#     else:
-#         data_input_column[0] = data_input_text
-
-
 # results
 
 class PlotSettings(param.Parameterized):
@@ -567,15 +553,27 @@ def b_fit(event):
     subs_conc = df['substrate'].values
     v0_values = df['rate'].values
     # validate data
-    if len(subs_conc) <= 2:
-        msg = 'Too few points (must be at least 3)'
+    n_points = len(subs_conc)
+    if n_points <= 2:
+        msg = '### <span style="color:red;">Error</span>\n\n'
+        msg = msg + f'Too few points data points ({n_points}).\n\n'
+        msg = msg + 'Must be at least 3.'
     elif np.var(subs_conc) / np.mean(subs_conc) < 1e-8:
-        msg = 'substrate concentrations too close to perform fitting'
+        msg = '### <span style="color:red;">Error</span>\n\n'
+        msg = msg + 'Substrate concentrations too close to perform fitting'
     else:
         msg = ''
     if msg:
-        pn.state.notifications.position = 'top-center'
-        pn.state.notifications.error(msg, duration=5000)
+        if app_display[-1] is not global_float:
+            app_display.append(global_float)
+        text = pn.pane.Markdown(msg)
+        global_float.clear()
+        global_float.append(text)
+        global_float.theme = 'danger'
+        # global_float.name = 'error'
+        global_float.satus = 'normalized'
+        # pn.state.notifications.position = 'top-center'
+        # pn.state.notifications.error(msg, duration=5000)
         return
     # make results_pane visible and compute results
     results_pane.visible = True
@@ -615,8 +613,15 @@ def change_data_view(event):
         select_button.disabled = False
         data_input_column[1] = data_input
         if msg:
-            pn.state.notifications.position = 'top-center'
-            pn.state.notifications.warning(msg, duration=5000)
+            dmsg = '### <span style="color:orange;">Warning:</span>\n\n'
+            msg = dmsg + msg
+            if app_display[-1] is not global_float:
+                app_display.append(global_float)
+            text = pn.pane.Markdown(msg)
+            global_float.clear()
+            global_float.append(text)
+            global_float.theme = 'warning'
+            global_float.satus = 'normalized'
 
 
 edit_table_group.param.watch(change_data_view, 'value')
@@ -688,6 +693,13 @@ plot_settings = pn.Column(pn.pane.Markdown('''#### Plot settings'''),
 tabs = pn.Tabs(('MM equation plot', pn.Row(mpl_hypers, plot_settings)),
                ('Secondary plots', mpl_others))
 plots_box = pn.WidgetBox(tabs)
+
+
+float_config = {"headerControls": {"maximize": "remove", 'minimize': 'remove'}}
+global_float = pn.layout.FloatPanel(pn.widgets.StaticText(value='Info'),
+                                    name='', margin=20,
+                                    config=float_config,
+                                    contained=False, position='center')
 
 results_pane = pn.Column(pn.layout.Divider(), "### Parameter values",
                          results_text,

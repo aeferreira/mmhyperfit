@@ -5,10 +5,12 @@ __pycache__
 *.png
 .vscode/
 mmhtml/
+webassembly/
 
 # Distribution / packaging
 .Python
 build/
+dist/
 develop-eggs/
 downloads/
 eggs/
