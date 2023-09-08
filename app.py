@@ -556,7 +556,7 @@ def b_fit(event):
     n_points = len(subs_conc)
     if n_points <= 2:
         msg = '### <span style="color:red;">Error</span>\n\n'
-        msg = msg + f'Too few points data points ({n_points}).\n\n'
+        msg = msg + f'Not enough data points ({n_points}).\n\n'
         msg = msg + 'Must be at least 3.'
     elif np.var(subs_conc) / np.mean(subs_conc) < 1e-8:
         msg = '### <span style="color:red;">Error</span>\n\n'
@@ -571,7 +571,7 @@ def b_fit(event):
         global_float.append(text)
         global_float.theme = 'danger'
         # global_float.name = 'error'
-        global_float.satus = 'normalized'
+        global_float.status = 'normalized'
         # pn.state.notifications.position = 'top-center'
         # pn.state.notifications.error(msg, duration=5000)
         return
@@ -680,6 +680,47 @@ image_format = pn.widgets.RadioButtonGroup(name='Image format',
                                            button_style='outline',
                                            button_type='primary')
 
+html_hamburger = '''<p>Colors</p>
+<div class="bar" style="background-color: {0};"></div>
+<div class="bar" style="background-color: {1};"></div>
+<div class="bar" style="background-color: {2};"></div>
+<div class="bar" style="background-color: {3};"></div>
+<div class="bar" style="background-color: {4};"></div>'''.format
+
+hamburger_stylesheet = '''
+.bar {
+  width: 45px;
+  height: 4px;
+  margin: 4px 0;
+}
+'''
+default_colors = ['black', 'blue', 'yellow', 'red', 'green']
+alternative_colors = ['blue', 'red', 'gray', 'black', 'green']
+colors_hamburger = pn.pane.HTML(html_hamburger(*default_colors),
+                                stylesheets=[hamburger_stylesheet])
+
+# color cycle choices
+
+color_items = [('default', 'default_colors'),
+               ('alternative', 'alternative_colors'), ]
+
+
+# handling the colors menu
+
+def handle_colors(event):
+    choice = event.new
+    if choice == 'default_colors':
+        colors_hamburger.object = html_hamburger(*default_colors)
+    elif choice == 'alternative_colors':
+        colors_hamburger.object = html_hamburger(*alternative_colors)
+
+
+colors_button = pn.widgets.MenuButton(name='Colors', width=120,
+                                      items=color_items,
+                                      button_type='primary')
+colors_button.on_click(handle_colors)
+
+
 plot_settings = pn.Column(pn.pane.Markdown('''#### Plot settings'''),
                           method_choice,
                           pn.widgets.StaticText(value='Show'),
@@ -687,7 +728,9 @@ plot_settings = pn.Column(pn.pane.Markdown('''#### Plot settings'''),
                                  display_grid,
                                  display_Kms,
                                  display_Vs),
-                          pn.Row(download_image, image_format), )
+                          pn.Row(download_image, image_format),
+                          colors_button,
+                          colors_hamburger)
 
 # plots
 tabs = pn.Tabs(('MM equation plot', pn.Row(mpl_hypers, plot_settings)),
