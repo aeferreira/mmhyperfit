@@ -422,8 +422,6 @@ def handle_edit(event):
         data_input.selection = not_used
     elif choice == 'del_selected':
         data_input.value = df[not_selected]
-    elif choice == 'paste':
-        pass
     else:
         pass  # do nothing
 
@@ -479,11 +477,8 @@ class PlotSettings(param.Parameterized):
 
 class MMResultsInterface(param.Parameterized):
     last_results = param.Dict({})
-
     plot_settings = PlotSettings()
-
     f_ax = param.Dict({})
-
     # triggers new plots resulting from V, Km computation
     e = param.Event()
 
@@ -530,7 +525,6 @@ def b_reset(event):
     data_input_text.value = ''
     edit_table_group.value = 'table'
     results_text.object = ''
-    # data_input_text.value = data_input_text.placeholder
 
     hypers_mpl(results=None, ax=res_interface.f_ax['hypers_ax'])
     mpl_hypers.param.trigger('object')
