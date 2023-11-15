@@ -91,12 +91,22 @@ def hypers_mpl(results=None, ax=None,
 
     maxKm = max([result.Km for result in all_results])
     maxV = max([result.V for result in all_results])
-    xmax = max(max(a), maxKm) * 1.1
+    maxVover2 = max([result.V/2.0 for result in all_results])
+
     if plot_settings.show_Vs:
         ymax = max(max(v0), maxV)
     else:
-        ymax = max(v0)
+        if plot_settings.show_Kms:
+            ymax = max(max(v0), maxVover2)
+        else:
+            ymax = max(v0)
     ymax = ymax * 1.1
+
+    if plot_settings.show_Kms:
+        xmax = max(max(a), maxKm)
+    else:
+        xmax = max(a)
+    xmax = xmax * 1.1
 
     if title is not None:
         ax.set_title(title)
