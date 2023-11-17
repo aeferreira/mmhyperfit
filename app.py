@@ -14,7 +14,7 @@ from panel.widgets import Button
 
 from mm_fitting.methods import MM, compute_methods
 
-APP_VERSION = "1.0"
+APP_VERSION = "1.1"
 
 pn.extension('tabulator', 'mathjax', 'floatpanel')
 # pn.extension(notifications=True)
@@ -673,16 +673,26 @@ display_grid = pn.widgets.Checkbox.from_param(parsetts.show_grid)
 display_Kms = pn.widgets.Checkbox.from_param(parsetts.show_Kms)
 display_Vs = pn.widgets.Checkbox.from_param(parsetts.show_Vs)
 
+
 download_image = pn.widgets.FileDownload(callback=res_interface.hypers_file,
                                          label='Download image as',
                                          icon='download',
-                                         filename='hypers.pdf',
-                                         height=30)
+                                         button_style='solid',
+                                         button_type='default',
+                                         filename='hypers.pdf',)
 
 image_format = pn.widgets.RadioButtonGroup(name='Image format',
                                            options=['png', 'svg'],
                                            button_style='outline',
-                                           button_type='primary')
+                                           button_type='primary', height=40)
+
+
+# TODO: use this idea sp that image download is triggered from a dropdown
+# provocative_button = pn.widgets.Button(name='Other button', button_type='warning')
+# def c(e):
+#     download_image._clicks += 1
+
+# provocative_button.on_click(c)
 
 html_hamburger = '''<p>Colors</p>
 <div class="bar" style="background-color: {0};"></div>
@@ -732,9 +742,13 @@ plot_settings = pn.Column(pn.pane.Markdown('''#### Plot settings'''),
                                  display_grid,
                                  display_Kms,
                                  display_Vs),
-                          pn.Row(download_image, image_format),
-                          colors_button,
-                          colors_hamburger)
+                          pn.Row(download_image,
+                                 image_format))
+# ,provocative_button)
+#   colors_button,
+#   colors_hamburger)
+
+# download_image.visible = False
 
 # plots
 tabs = pn.Tabs(('MM equation plot', pn.Row(mpl_hypers, plot_settings)),
