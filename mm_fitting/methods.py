@@ -104,10 +104,10 @@ def lm(f, p, x, y,
     weight = 1.0 / np.dot(y, y)
     dp = [1e-8]
     p_min, p_max = -100*abs(p), 100*abs(p)
-    epsilon_1 = 1e-3   # convergence tolerance for gradient
-    epsilon_2 = 1e-3   # convergence tolerance for parameters
-    epsilon_4 = 1e-1   # determines acceptance of a L-M step
-    lambda_0 = 1e-2    # initial value of damping parameter, lambda
+    epsilon_1 = 1e-3    # convergence tolerance for gradient
+    epsilon_2 = 1e-3    # convergence tolerance for parameters
+    epsilon_4 = 1e-1    # determines acceptance of a L-M step
+    iter_lambda = 1e-2  # initial value of damping parameter, lambda
     lambda_UP_fac = 11  # factor for increasing lambda
     lambda_DN_fac = 9   # factor for decreasing lambda
     if len(dp) == 1:
@@ -125,13 +125,14 @@ def lm(f, p, x, y,
                                                          weight, dp, iteration)
     func_calls += more_func_calls
 
-    lambda_0 = np.atleast_2d([lambda_0])
-    iter_lambda = lambda_0
+    # lambda_0 = np.atleast_2d([lambda_0])
+    # iter_lambda = lambda_0
+
     X2_old = X2
 
     # initialize convergence history
     cvg_hst = np.ones((max_iter, n_pars+3))
-    cvg_hst[0, 0:3] = func_calls, X2 / DoF, iter_lambda[0, 0]
+    cvg_hst[0, 0:3] = func_calls, X2 / DoF, iter_lambda  # [0, 0]
     cvg_hst[0, 3:] = p[:, 0]
 
     while not stop and iteration <= max_iter:
@@ -173,7 +174,7 @@ def lm(f, p, x, y,
                 func_calls += more_func_calls
             iter_lambda = min(iter_lambda*lambda_UP_fac, 1.e7)
 
-        cvg_hst[iteration, 0:3] = func_calls, X2 / DoF, iter_lambda[0, 0]
+        cvg_hst[iteration, 0:3] = func_calls, X2 / DoF, iter_lambda  # [0, 0]
         cvg_hst[iteration, 3:] = p[:, 0]
 
         if max(abs(JtWdy)) < epsilon_1 and iteration > 2:
@@ -326,5 +327,76 @@ def compute_methods(a, v0):
     return {'a': a, 'v0': v0, 'results': results}
 
 
+def show_results(results):
+    a = results['a']
+    v0 = results['v0']
+    res = results['results']
+    print('-- Data points ---')
+    for subst, rate in zip(a, v0):
+        print(f'{subst:.6f} {rate:.6f}')
+    print('-- Results ---')
+    if res is None:
+        print('NO RESULTS WERE GENERATED')
+        return
+    for method in res:
+        print(method.method)
+        if method.error is not None:
+            print('ERROR')
+            print(method.error)
+            continue
+        print('Vmax =', method.V)
+        print('Km   =', method.Km)
+
+
+def read_from_whitespace(text):
+    a = []
+    v = []
+    for line in text.splitlines():
+        line = line.strip()
+        if len(line) == 0:
+            continue
+        subs, rate = line.split(None, 1)
+        a.append(float(subs))
+        v.append(float(rate))
+    return np.array(a), np.array(v)
+
+
 if __name__ == '__main__':
-    pass
+    a = np.array([0.138, 0.22, 0.291, 0.56, 0.766, 1.46])
+    v = np.array([0.148, 0.171, 0.234, 0.324, 0.39, 0.493])
+    res = compute_methods(a, v)
+    show_results(res)
+    a = np.array([0.138, 0.22, 0.291, 0.56, 0.766, 1.46])
+    v = np.array([0.05, 0.1, 0.234, 0.324, 0.39, 0.493])
+    res = compute_methods(a, v)
+    show_results(res)
+    problem3 = '''
+    0.212789435	0.000205
+    0.411679048	0.000351
+    0.596798774	0.000412
+    0.768453499	0.000758
+    1.073340039	0.000783
+    '''
+    a, v = read_from_whitespace(problem3)
+    res = compute_methods(a, v)
+    show_results(res)
+
+    problem4 = '''
+    0.239         0.01074
+    0.412         0.01932
+    0.597         0.02616
+    0.768         0.03552
+    1.073         0.04410'''
+    a, v = read_from_whitespace(problem4)
+    res = compute_methods(a, v)
+    show_results(res)
+
+    problem5 = '''
+    0.80000   0.05000
+    2.00000   0.10000
+    4.00000   0.43300
+    6.00000   0.48800
+    20.00000   0.62000'''
+    a, v = read_from_whitespace(problem5)
+    res = compute_methods(a, v)
+    show_results(res)

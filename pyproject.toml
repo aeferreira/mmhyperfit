@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mm_fitting"
-version = "1.0"
+version = "1.1"
 description = "Methods to compute Michaelis-Menten equation parameters and statistics."
 requires-python = ">=3.9"
 readme = "README_mmfitting.md"
