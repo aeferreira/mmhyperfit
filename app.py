@@ -89,9 +89,18 @@ def hypers_mpl(results=None, ax=None,
     # defaults
     colorscheme = default_color_scheme
 
-    maxKm = max([result.Km for result in all_results])
-    maxV = max([result.V for result in all_results])
-    maxVover2 = max([result.V/2.0 for result in all_results])
+    chosen3letter = [choice[:3] for choice in plot_settings.include_methods]
+
+    colors = {}
+    kept = []
+    for result, color in zip(all_results, colorscheme):
+        if result.method[:3] in chosen3letter:
+            colors[result.method] = color
+            kept.append(result)
+
+    maxKm = max([result.Km for result in kept])
+    maxV = max([result.V for result in kept])
+    maxVover2 = max([result.V/2.0 for result in kept])
 
     if plot_settings.show_Vs:
         ymax = max(max(v0), maxV)
@@ -108,19 +117,19 @@ def hypers_mpl(results=None, ax=None,
         xmax = max(a)
     xmax = xmax * 1.1
 
-    if title is not None:
-        ax.set_title(title)
     ax.set_ylim(0, ymax)
     ax.set_xlim(0, xmax)
-    chosen3letter = [choice[:3] for choice in plot_settings.include_methods]
 
-    for result, color in zip(all_results, colorscheme):
-        if result.method[:3] not in chosen3letter:
-            continue
+    if title is not None:
+        ax.set_title(title)
+
+    for result in kept:
 
         V, Km = result.V, result.Km
         line_x = np.linspace(0.0, xmax, 200)
         line_y = MM(line_x, V, Km)
+
+        color = colors[result.method]
 
         ax.plot(line_x, line_y, label=result.method,
                 color=color, linestyle='solid', lw=2, zorder=4.0)
