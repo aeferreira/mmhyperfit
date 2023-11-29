@@ -29,6 +29,7 @@ def repr_x_deltax(value, delta):
 
 
 def report_str(results):
+    results = results['results']
     lines = []
     for result in results:
         lines.append(result.method)
@@ -364,13 +365,12 @@ def data_as_txt(df):
     return '\n'.join(lines)
 
 
-# widgetry
-
-
 empty_df = pd.DataFrame({'substrate': pd.Series([], dtype='float'),
                          'rate': pd.Series([], dtype='float'),
                          'use': pd.Series([], dtype='bool')})
 empty_df.index.name = '#'
+
+# widgetry ####################
 
 # data input widget (a Tabulator widget)
 
@@ -593,7 +593,7 @@ def b_fit(event):
     res_interface.last_results = compute_methods(subs_conc, v0_values)
 
     # fill results text and trigger the drawing of new plots
-    results_text.object = report_str(res_interface.last_results['results'])
+    results_text.object = report_str(res_interface.last_results)
     res_interface.e = True
 
 
