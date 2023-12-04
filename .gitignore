@@ -6,6 +6,7 @@ __pycache__
 .vscode/
 mmhtml/
 webassembly/
+depot/
 
 # Distribution / packaging
 .Python
