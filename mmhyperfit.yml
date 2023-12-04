@@ -1,0 +1,9 @@
+name: mmhyperfit
+
+dependencies:
+  - pytest
+  - numpy
+  - pandas
+  - matplotlib
+  - panel>=1.3
+  - jupyter
