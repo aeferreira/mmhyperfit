@@ -1,6 +1,10 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.colors
+import matplotlib.cm
+
+import param
 
 from mm_fitting.methods import MM
 
@@ -9,8 +13,8 @@ from mm_fitting.methods import MM
 
 def repr_x_deltax(value, delta):
     if delta is None:
-        return f'{value:6.3f}'
-    return f"{value:6.3f} ± {delta:6.3f}"
+        return f'{value:6.4f}'
+    return f"{value:6.4f} ± {delta:6.4f}"
 
 
 def report_str(results):
@@ -38,13 +42,6 @@ def report_str(results):
 
 # constants
 
-default_color_scheme = ('darkviolet',
-                        'tab:green',
-                        'tab:red',
-                        'tab:blue',
-                        'tab:orange')
-
-
 all_methods_list = ('Hyperbolic Regression',
                     'Lineweaver-Burk',
                     'Hanes',
@@ -53,6 +50,39 @@ all_methods_list = ('Hyperbolic Regression',
 
 plt.rc('mathtext', fontset='cm')
 
+default_color_scheme = ('darkviolet',
+                        'tab:green',
+                        'tab:red',
+                        'tab:blue',
+                        'tab:orange')
+
+alternt_color_scheme = ('darkblue',
+                        'fuchsia',
+                        'firebrick',
+                        'darkgreen',
+                        'darkorange')
+
+color_scheme2 = (matplotlib.cm.get_cmap('Set1').colors[0:5])
+
+line_color_schemes = {
+    'default': [matplotlib.colors.to_hex(c) for c in default_color_scheme],
+    'nice': [matplotlib.colors.to_hex(c) for c in color_scheme2],
+    'stranger': [matplotlib.colors.to_hex(c) for c in alternt_color_scheme],
+}
+
+
+class PlotSettings(param.Parameterized):
+    include_methods = param.ListSelector(default=list(all_methods_list),
+                                         objects=list(all_methods_list))
+    show_legend = param.Boolean(default=True, label='Legend')
+    show_grid = param.Boolean(default=False, label='Grid')
+    show_Kms = param.Boolean(default=False, label='Km')
+    show_Vs = param.Boolean(default=False, label='V')
+    line_colors = param.Selector(objects=line_color_schemes)
+
+
+default_settings = PlotSettings()
+
 
 def hypers_mpl(results=None, ax=None,
                plot_settings=None,
@@ -60,6 +90,9 @@ def hypers_mpl(results=None, ax=None,
 
     if ax is None:
         return
+
+    if plot_settings is None:
+        plot_settings = default_settings
 
     ax.clear()
 
@@ -72,14 +105,12 @@ def hypers_mpl(results=None, ax=None,
     all_results = results['results']
 
     # plt.rc('mathtext', fontset='cm')
-    # defaults
-    colorscheme = default_color_scheme
 
     chosen3letter = [choice[:3] for choice in plot_settings.include_methods]
 
     colors = {}
     kept = []
-    for result, color in zip(all_results, colorscheme):
+    for result, color in zip(all_results, plot_settings.line_colors):
         if result.method[:3] in chosen3letter:
             colors[result.method] = color
             kept.append(result)
